@@ -1,0 +1,12 @@
+{
+  "name": "Grand Alliance — Pairing AoS",
+  "short_name": "Grand Alliance",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f1210",
+  "theme_color": "#0f1210",
+  "icons": [
+    { "src": "icon.png", "sizes": "1024x1024", "type": "image/png" },
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}

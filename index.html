@@ -1,0 +1,1916 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Grand Alliance — Outil de Pairing AoS</title>
+
+<!-- Réglages "app" pour iOS (Ajouter à l'écran d'accueil) -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Grand Alliance">
+<meta name="theme-color" content="#0f1210">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon.png">
+<link rel="manifest" href="manifest.json">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+
+  :root{
+    --bg: #0f1210;
+    --bg-panel: #161b17;
+    --bg-raised: #1c231e;
+    --line: #313b32;
+    --bone: #e9e4d6;
+    --bone-dim: #9aa39a;
+    --brass: #b8935a;
+    --brass-bright: #d9b06e;
+    --red: #a3352f;
+    --red-bright: #d9463d;
+    --green: #4f7a5c;
+    --green-bright: #6ea87f;
+    --amber: #c98a2c;
+    --ember: #d9622d;
+    --ember-bright: #f0824a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--bone);
+    font-family:'IBM Plex Sans', sans-serif;
+    min-height:100vh;
+  }
+  .app{max-width:1180px;margin:0 auto;padding:28px 20px 80px;}
+
+  /* Header / signature element */
+  .cmd-header{
+    position:relative; padding:22px 24px; margin-bottom:22px;
+    background:linear-gradient(180deg, var(--bg-panel), var(--bg));
+    border:1px solid var(--line); border-left:4px solid var(--ember);
+  }
+  .cmd-header h1{
+    font-family:'Cinzel',serif; font-weight:700; letter-spacing:.04em;
+    text-transform:uppercase; font-size:25px; margin:0 0 4px;
+    color:var(--bone);
+  }
+  .cmd-header .sub{
+    font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--brass);
+    letter-spacing:.08em; text-transform:uppercase;
+  }
+  .header-controls{
+    display:flex; align-items:center; gap:10px; margin-top:14px; flex-wrap:wrap;
+  }
+  .header-controls label{
+    font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--bone-dim);
+    text-transform:uppercase; letter-spacing:.05em;
+  }
+  .header-controls select{
+    background:var(--bg-raised); border:1px solid var(--brass); color:var(--brass-bright);
+    padding:6px 10px; font-family:'Cinzel',serif; font-size:12.5px; font-weight:600;
+    text-transform:uppercase; letter-spacing:.04em; cursor:pointer;
+  }
+  .battle-line{
+    display:flex; gap:2px; margin-top:16px;
+  }
+  .battle-line .seg{
+    flex:1; height:4px; background:var(--line);
+  }
+  .battle-line .seg.locked{ background:var(--green-bright); }
+  .battle-line .seg.partial{ background:var(--amber); }
+
+  /* Tabs */
+  .tabs{display:flex; gap:2px; margin-bottom:18px; border-bottom:1px solid var(--line); flex-wrap:wrap;}
+  .tab-btn{
+    font-family:'Cinzel',serif; text-transform:uppercase; letter-spacing:.04em;
+    font-size:13px; font-weight:600; color:var(--bone-dim);
+    background:transparent; border:none; padding:12px 18px; cursor:pointer;
+    border-bottom:2px solid transparent;
+  }
+  .tab-btn:hover{color:var(--bone);}
+  .tab-btn.active{color:var(--brass-bright); border-bottom:2px solid var(--ember-bright);}
+
+  .panel{display:none;}
+  .panel.active{display:block;}
+
+  h2.section-title{
+    font-family:'Cinzel',serif; text-transform:uppercase; letter-spacing:.04em;
+    font-size:15px; color:var(--brass-bright); margin:26px 0 10px; font-weight:600;
+    border-bottom:1px solid var(--line); padding-bottom:6px;
+  }
+  h2.section-title:first-child{margin-top:0;}
+
+  .hint{font-size:12.5px; color:var(--bone-dim); margin:-4px 0 12px; line-height:1.5;}
+
+  /* Setup grids */
+  .roster-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(300px,1fr)); gap:10px;}
+  .roster-row{
+    display:flex; gap:8px; align-items:center; background:var(--bg-panel);
+    border:1px solid var(--line); padding:8px 10px; flex-wrap:wrap;
+  }
+  .roster-row .num{
+    font-family:'IBM Plex Mono',monospace; color:var(--brass); font-size:12px; width:18px;
+  }
+  .roster-row input[type=text]{flex:1.3; min-width:110px;}
+  .roster-row select{flex:1; min-width:118px;}
+  .roster-row select.tactic-sel{font-size:11.5px;}
+
+  input[type=text], input[type=password]{
+    background:var(--bg-raised); border:1px solid var(--line); color:var(--bone);
+    padding:6px 8px; font-family:'IBM Plex Sans',sans-serif; font-size:13px;
+  }
+  input[type=text]:focus, select:focus, input[type=number]:focus, input[type=password]:focus{outline:1px solid var(--brass-bright);}
+  #geminiSettingsPanel label{
+    display:flex; flex-direction:column; gap:4px; font-size:11.5px; color:var(--bone-dim);
+    font-family:'IBM Plex Mono',monospace; text-transform:uppercase; letter-spacing:.04em;
+  }
+  #geminiSettingsPanel input[type=password]{width:100%; max-width:420px; box-sizing:border-box;}
+  .fd-tag{
+    display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:9.5px;
+    text-transform:uppercase; letter-spacing:.03em; color:var(--ember-bright);
+    border:1px solid var(--ember); padding:1px 5px; margin-left:5px; margin-top:2px; vertical-align:middle;
+  }
+
+  /* Matrix */
+  .matrix-wrap{overflow-x:auto; border:1px solid var(--line);}
+  table.matrix{border-collapse:collapse; font-family:'IBM Plex Mono',monospace; font-size:12px;}
+  table.matrix th, table.matrix td{border:1px solid var(--line); padding:0; text-align:center;}
+  table.matrix th{
+    background:var(--bg-panel); color:var(--brass); font-weight:500; padding:8px 6px;
+    max-width:150px; font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  table.matrix th.corner{background:var(--bg); color:var(--bone-dim);}
+  table.matrix td.rowhead{
+    background:var(--bg-panel); color:var(--brass); text-align:left; padding:8px 10px;
+    font-size:11px; white-space:nowrap; max-width:190px; overflow:hidden; text-overflow:ellipsis;
+  }
+  table.matrix input[type=number]{
+    width:46px; height:34px; text-align:center; border:none; background:transparent;
+    color:var(--bone); font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:600;
+  }
+  table.matrix input[type=number]:focus{outline:1px solid var(--brass-bright);}
+
+  details.advanced{margin-top:18px; border:1px solid var(--line); background:var(--bg-panel);}
+  details.advanced summary{
+    cursor:pointer; padding:10px 14px; font-family:'Cinzel',serif; text-transform:uppercase;
+    letter-spacing:.04em; font-size:12.5px; color:var(--brass);
+  }
+  details.advanced .inner{padding:0 14px 14px;}
+
+  /* Live pairing */
+  .mode-row{display:flex; gap:10px; align-items:center; margin-bottom:18px; flex-wrap:wrap;}
+  .mode-row label{font-size:12.5px; color:var(--bone-dim); font-family:'IBM Plex Mono',monospace;}
+  select{
+    background:var(--bg-raised); border:1px solid var(--line); color:var(--bone);
+    padding:6px 8px; font-size:12.5px; font-family:'IBM Plex Sans',sans-serif;
+  }
+  .totals{
+    display:flex; gap:22px; background:var(--bg-panel); border:1px solid var(--line);
+    padding:12px 16px; margin-bottom:18px; flex-wrap:wrap;
+  }
+  .totals .stat{font-family:'IBM Plex Mono',monospace;}
+  .totals .stat .v{font-size:20px; font-weight:600; color:var(--brass-bright); display:block;}
+  .totals .stat .l{font-size:10.5px; color:var(--bone-dim); text-transform:uppercase; letter-spacing:.06em;}
+
+  .tables-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:12px;}
+  .table-card{
+    background:var(--bg-panel); border:1px solid var(--line); border-top:3px solid var(--line);
+    padding:12px; position:relative;
+  }
+  .table-card.locked{border-top-color:var(--green-bright);}
+  .table-card.partial{border-top-color:var(--amber);}
+  .table-card .tname{
+    font-family:'Cinzel',serif; text-transform:uppercase; letter-spacing:.03em;
+    font-size:13px; font-weight:600; color:var(--bone); margin-bottom:2px;
+  }
+  .table-card .tmission{font-size:11px; color:var(--ember-bright); margin-bottom:10px; min-height:14px;}
+  .slot{
+    display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap;
+    padding:6px 8px; margin-bottom:6px; background:var(--bg-raised); border:1px solid var(--line);
+    font-size:12px;
+  }
+  .slot .side{font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--bone-dim); text-transform:uppercase; width:34px;}
+  .slot .val{flex:1; font-weight:600;}
+  .slot.empty .val{color:var(--bone-dim); font-weight:400; font-style:italic;}
+  .slot button.x{
+    background:none; border:none; color:var(--red-bright); cursor:pointer; font-size:13px; padding:0 2px;
+  }
+  .rec-box{
+    margin-top:8px; padding:8px; background:rgba(184,147,90,.08); border:1px dashed var(--brass);
+  }
+  .rec-box .rec-label{font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--brass); margin-bottom:4px;}
+  .rec-box select{width:100%; margin-bottom:6px;}
+  .btn{
+    font-family:'Cinzel',serif; text-transform:uppercase; letter-spacing:.03em; font-size:11.5px;
+    font-weight:600; background:var(--red); color:var(--bone); border:none; padding:6px 10px;
+    cursor:pointer; width:100%;
+  }
+  .btn:hover{background:var(--red-bright);}
+  .btn.secondary{background:var(--bg-raised); border:1px solid var(--brass); color:var(--brass-bright);}
+  .btn.secondary:hover{background:var(--bg);}
+  .score-pill{
+    font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:13px; padding:2px 8px;
+    display:inline-block; margin-top:4px;
+  }
+  .score-inputs{display:flex; gap:10px; margin-top:10px;}
+  .score-inputs label{
+    flex:1; display:flex; flex-direction:column; align-items:center; gap:5px;
+    font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--bone-dim);
+    text-transform:uppercase; letter-spacing:.05em; text-align:center;
+  }
+  .score-inputs input[type=number]{
+    width:100%; max-width:100%; box-sizing:border-box; text-align:center;
+    background:var(--bg-raised); border:1px solid var(--line); color:var(--bone);
+    padding:8px 6px; font-family:'IBM Plex Mono',monospace; font-size:16px; font-weight:700;
+  }
+  .score-inputs input[type=number]:focus{outline:1px solid var(--brass-bright);}
+  .toolbar{display:flex; gap:10px; margin:20px 0; flex-wrap:wrap;}
+  .toolbar .btn{width:auto;}
+  .footer-note{font-size:11.5px; color:var(--bone-dim); margin-top:30px; line-height:1.6; border-top:1px solid var(--line); padding-top:14px;}
+
+  /* Opponent team tabs (pills) */
+  .opp-team-bar{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:14px;}
+  .opp-pill{
+    font-family:'Cinzel',serif; text-transform:uppercase; letter-spacing:.03em; font-size:12px;
+    font-weight:600; color:var(--bone-dim); background:var(--bg-panel); border:1px solid var(--line);
+    padding:7px 14px; cursor:pointer;
+  }
+  .opp-pill:hover{color:var(--bone); border-color:var(--brass);}
+  .opp-pill.active{color:var(--bone); background:var(--bg-raised); border-color:var(--ember-bright); border-bottom:2px solid var(--ember-bright);}
+  .opp-pill.add{color:var(--brass-bright); border-style:dashed;}
+  .opp-pill.add:disabled{opacity:.35; cursor:not-allowed; border-style:dashed;}
+  .opp-team-panel-head{display:flex; align-items:center; gap:10px; margin:0 0 14px; flex-wrap:wrap;}
+  .opp-team-panel-head input[type=text]{flex:1; min-width:180px; max-width:320px;}
+  .opp-team-panel-head .btn.danger{width:auto; background:transparent; border:1px solid var(--red); color:var(--red-bright);}
+  .opp-team-panel-head .btn.danger:hover{background:var(--red); color:var(--bone);}
+  .opp-team-panel-head .btn.danger:disabled{opacity:.3; cursor:not-allowed; background:transparent; color:var(--bone-dim); border-color:var(--line);}
+  .live-opp-row{display:flex; align-items:center; gap:10px; margin-bottom:16px; flex-wrap:wrap;}
+  .live-opp-row label{font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--bone-dim); text-transform:uppercase; letter-spacing:.05em;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="cmd-header">
+    <div class="sub" id="formatSub">Team Event · Format 8v8 · General's Handbook 2026-27 (Aqshy)</div>
+    <h1>Grand Alliance — Assistant de Pairing Age of Sigmar</h1>
+    <div class="header-controls">
+      <label for="teamSizeSelect">Format d'équipe :</label>
+      <select id="teamSizeSelect">
+        <option value="4">4 joueurs</option>
+        <option value="5">5 joueurs</option>
+        <option value="6" selected>6 joueurs</option>
+        <option value="8">8 joueurs</option>
+      </select>
+    </div>
+    <div class="battle-line" id="battleLine"></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="setup">1. Configuration</button>
+    <button class="tab-btn" data-tab="matchups">2. Matchups</button>
+    <button class="tab-btn" data-tab="missions">3. Battleplans &amp; Tactics</button>
+    <button class="tab-btn" data-tab="live">4. Pairing en direct</button>
+    <button class="tab-btn" data-tab="results">5. Résultats Réels Pairing</button>
+  </div>
+
+  <!-- SETUP -->
+  <div class="panel active" id="panel-setup">
+    <h2 class="section-title">Mon équipe</h2>
+
+    <details class="advanced">
+      <summary>Avancé — mettre à jour le niveau de puissance méta par faction (utilisé pour générer le roster ci-dessous)</summary>
+      <div class="inner">
+        <div class="hint">Score de niveau de puissance actuel dans la méta pour chaque faction, de -3 (très faible) à +3 (très fort) : plus le score est élevé, plus la faction a de chances d'être tirée par « 🎲 Générer mon équipe (meilleur roster meta) ». Pré-rempli à partir d'une synthèse de win rates de tournois publiés courant 2026 (à ajuster à ta guise, ou à écraser avec tes propres données) — la même donnée alimente aussi le tableau de suggestion de matchups de l'onglet Matchups.</div>
+        <div class="matrix-wrap" id="factionPowerWrap"><table class="matrix" id="factionPowerMatrix"></table></div>
+        <div class="hint" id="factionPowerStatus" style="margin-top:8px;"></div>
+        <div class="toolbar">
+          <button class="btn secondary" id="refreshFactionPowerBtn">🔎 Rafraîchir la méta (Gemini + recherche web)</button>
+          <button class="btn secondary" id="toggleGeminiSettingsBtn2" style="margin-left:auto;">⚙️ Réglages Gemini</button>
+        </div>
+        <div id="geminiSettingsPanel2" style="display:none;border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-top:6px;background:rgba(255,255,255,0.02);">
+          <div class="hint" style="margin-top:0;">
+            Renseigne ici ta propre clé API Gemini (Google AI Studio, gratuite à créer). Elle reste stockée uniquement sur cet appareil, n'est jamais incluse dans les exports/imports de configuration, et chaque clic sur "Rafraîchir la méta" déclenche un appel facturé directement par Google (hors abonnement claude.ai).
+          </div>
+          <label style="margin-top:10px;max-width:420px;">Clé API Gemini
+            <input type="password" id="geminiApiKeyInput2" placeholder="AIza..." autocomplete="off">
+          </label>
+          <div class="toolbar" style="margin-top:8px;">
+            <button class="btn secondary" id="saveGeminiSettingsBtn2">Enregistrer la clé</button>
+            <span id="geminiSettingsSavedIndicator2" style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--bone-dim);"></span>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <div class="hint">Pour chaque joueur : faction, puis les 2 Battle Tactics cards choisies pour sa liste (General's Handbook 2026-27 — jusqu'à 2 cartes par armée, révélées à l'adversaire avant le déploiement).</div>
+    <div class="roster-grid" id="myRoster"></div>
+    <div class="toolbar" style="align-items:center;">
+      <label for="maxTacticDuplicatesInput" style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--bone-dim); text-transform:uppercase; letter-spacing:.05em;">Doublons max par Battle Tactics card :</label>
+      <input type="number" id="maxTacticDuplicatesInput" min="1" step="1" style="width:56px; background:var(--bg-raised); border:1px solid var(--line); color:var(--bone); padding:6px 8px; font-family:'IBM Plex Mono',monospace; font-size:13px;">
+      <button class="btn secondary" id="randomizeMyTeamBtn">🎲 Générer mon équipe (meilleur roster meta)</button>
+    </div>
+    <div class="hint">Tire au sort un roster complet en favorisant les factions les mieux classées dans la méta (tableau de puissance de l'onglet Matchups) : plus une faction est forte, plus elle a de chances d'être choisie — sans jamais la dupliquer. Les 2 Battle Tactics cards de chaque liste sont piochées parmi les mieux notées pour les battleplans déjà sélectionnés dans « Tables » ci-dessous (ou pour l'ensemble des 12 battleplans si aucun n'est encore choisi), en respectant le plafond de doublons réglé ci-dessus — comme dans la plupart des règlements de tournoi par équipe (WTC, ETC, AOSFF...), une même Battle Tactics card ne peut pas être piochée par n'importe quel nombre de joueurs. Ajuste la valeur selon le règlement exact de ton tournoi ; si elle est trop stricte pour compléter le roster, elle est automatiquement assouplie au minimum jouable.</div>
+
+    <h2 class="section-title">Équipes adverses possibles (jusqu'à 5)</h2>
+    <div class="hint">Configure un profil par adversaire potentiel (roster + matchups + affinités). Le jour J, choisis dans l'onglet « Pairing en direct » contre laquelle tu joues réellement ce round.</div>
+    <div class="opp-team-bar" id="oppTeamTabsSetup"></div>
+    <div class="toolbar">
+      <button class="btn secondary" id="randomizeOppTeamBtn">🎲 Générer aléatoirement l'équipe adverse active</button>
+      <button class="btn secondary" id="randomizeAllOppTeamsBtn">🎲 Générer aléatoirement toutes les équipes adverses</button>
+    </div>
+    <div class="hint">Utile pour t'entraîner sur l'onglet « Pairing en direct » sans avoir à saisir un vrai roster adverse : noms, factions et Battle Tactics cards sont tirés au sort (en respectant le même plafond de doublons par card réglé ci-dessus), et les matchups sont pré-remplis à partir de la méta (onglet Matchups).</div>
+    <div id="oppTeamPanel"></div>
+
+    <h2 class="section-title">Tables (jusqu'à 8) &amp; battleplan joué</h2>
+    <div class="roster-grid" id="tableRoster"></div>
+    <div class="toolbar">
+      <button class="btn secondary" id="randomizeTableNamesBtn">🎲 Tables &amp; battleplans aléatoires</button>
+    </div>
+    <div class="hint">Le nom de table est juste un repère visuel (ex. « Table 3 »). Le <strong>battleplan</strong> sélectionné (les 12 du General's Handbook 2026-27) est ce qui compte pour le calcul : c'est lui qui est réutilisé dans les onglets Battleplans &amp; Tactics et Pairing en direct. Le tirage aléatoire génère maintenant aussi les battleplans, distribués sans doublon entre les tables.</div>
+  </div>
+
+  <!-- MATCHUPS -->
+  <div class="panel" id="panel-matchups">
+    <details class="advanced" open>
+      <summary>Avancé — suggérer les matchups à partir de résultats de tournoi (faction vs faction)</summary>
+      <div class="inner">
+        <div class="hint">Le tableau ci-dessous est pré-rempli à partir d'une synthèse de win rates de tournois publiés courant juillet 2026, saison Aqshy (à ajuster à ta guise, ou à écraser avec tes propres données). Échelle -3 (grosse défavorable) à +3 (grosse favorable). Seules les factions réellement présentes dans tes rosters apparaissent ci-dessous.</div>
+        <div class="hint" id="factionMetaEmpty" style="display:none;">Renseigne d'abord les factions dans les rosters (onglet Configuration) pour faire apparaître ce tableau.</div>
+        <div class="matrix-wrap" id="factionMetaWrap"><table class="matrix" id="factionMetaMatrix"></table></div>
+        <div class="hint" id="factionMetaStatus" style="margin-top:8px;"></div>
+        <div class="toolbar">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--bone-dim);font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.04em;">
+            <input type="checkbox" id="factionMetaOverwrite"> Écraser aussi les cases déjà réglées manuellement
+          </label>
+          <button class="btn secondary" id="applyFactionMetaActiveBtn">Appliquer à l'équipe adverse active</button>
+          <button class="btn secondary" id="applyFactionMetaAllBtn">Appliquer à toutes les équipes adverses</button>
+        </div>
+        <div class="toolbar">
+          <button class="btn secondary" id="refreshFactionMetaBtn">🔎 Rafraîchir la méta (Gemini + recherche web)</button>
+          <button class="btn secondary" id="toggleGeminiSettingsBtn" style="margin-left:auto;">⚙️ Réglages Gemini</button>
+        </div>
+        <div id="geminiSettingsPanel" style="display:none;border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-top:6px;background:rgba(255,255,255,0.02);">
+          <div class="hint" style="margin-top:0;">
+            Renseigne ici ta propre clé API Gemini (Google AI Studio, gratuite à créer). Elle reste stockée uniquement sur cet appareil, n'est jamais incluse dans les exports/imports de configuration, et chaque clic sur "Rafraîchir la méta" déclenche un appel facturé directement par Google (hors abonnement claude.ai).
+          </div>
+          <label style="margin-top:10px;max-width:420px;">Clé API Gemini
+            <input type="password" id="geminiApiKeyInput" placeholder="AIza..." autocomplete="off">
+          </label>
+          <div class="toolbar" style="margin-top:8px;">
+            <button class="btn secondary" id="saveGeminiSettingsBtn">Enregistrer la clé</button>
+            <span id="geminiSettingsSavedIndicator" style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--bone-dim);"></span>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <h2 class="section-title">Matrice des matchups (moi × adversaire)</h2>
+    <div class="hint">Note chaque confrontation de -3 (très mauvais matchup pour ta liste) à +3 (très favorable). 0 = équilibré. Cette note doit refléter la moyenne tous battleplans confondus. Choisis ci-dessous quelle équipe adverse tu configures.</div>
+    <div class="opp-team-bar" id="oppTeamTabsMatchups"></div>
+    <div class="matrix-wrap"><table class="matrix" id="matchupMatrix"></table></div>
+  </div>
+
+  <!-- MISSIONS -->
+  <div class="panel" id="panel-missions">
+    <h2 class="section-title">Affinité de mes listes par table (battleplan joué)</h2>
+    <div class="hint">Pour chaque liste, note de -2 à +2 à quel point elle performe mieux ou moins bien sur ce battleplan précis (déploiement, zones, objectifs, terrain de faction...). Vient s'ajouter au score de matchup. Sélectionne d'abord le battleplan de chaque table dans l'onglet Configuration pour que les colonnes soient parlantes.</div>
+    <div class="matrix-wrap"><table class="matrix" id="myFitMatrix"></table></div>
+
+    <details class="advanced">
+      <summary>Avancé — affinité des listes adverses par table (si connue)</summary>
+      <div class="inner">
+        <div class="hint">Optionnel. Si tu sais qu'une liste adverse est particulièrement forte/faible sur un battleplan donné, ajuste ici (-2 à +2). Laisse à 0 si inconnu — ça n'affecte alors pas le calcul. Sélectionne l'équipe adverse concernée.</div>
+        <div class="opp-team-bar" id="oppTeamTabsMissions"></div>
+        <div class="matrix-wrap"><table class="matrix" id="oppFitMatrix"></table></div>
+      </div>
+    </details>
+
+    <h2 class="section-title">Affinité Battle Tactics × Battleplan</h2>
+    <div class="hint">Les 6 Battle Tactics cards du General's Handbook 2026-27 (Blazing Onslaught, Siege of Ashes, Flanking Firestorm, Smokescreen, Burning for Vengeance, Legend of the Parch) contre les 12 battleplans de la saison. Note de -2 à +2 à quel point une carte est facile/difficile à scorer sur un battleplan donné (déploiement, disposition des objectifs, terrain de faction, mécanique spécifique...). Le calcul de score compare automatiquement la moyenne des cartes choisies par ta liste contre celle des cartes de l'adversaire sur la table jouée. Optionnel, laisse à 0 si tu préfères t'en tenir au seul matchup de listes.</div>
+    <div class="matrix-wrap"><table class="matrix" id="tacticMatrix"></table></div>
+  </div>
+
+  <!-- LIVE -->
+  <div class="panel" id="panel-live">
+    <div class="live-opp-row">
+      <label for="liveOppSelect">Adversaire de ce round :</label>
+      <select id="liveOppSelect"></select>
+    </div>
+    <div class="mode-row">
+      <label>Stratégie de recommandation :</label>
+      <select id="modeSelect">
+        <option value="expected">Espérance (moyenne des listes adverses restantes)</option>
+        <option value="conservative">Prudente (pire cas parmi les listes adverses restantes)</option>
+      </select>
+    </div>
+
+    <div class="totals">
+      <div class="stat"><span class="v" id="totLocked">0</span><span class="l">Score verrouillé</span></div>
+      <div class="stat"><span class="v" id="totRec">0</span><span class="l">Score recommandé restant</span></div>
+      <div class="stat"><span class="v" id="totGrand">0</span><span class="l">Total projeté</span></div>
+      <div class="stat"><span class="v" id="totOpen">6</span><span class="l">Tables non verrouillées</span></div>
+    </div>
+
+    <div class="tables-grid" id="tablesGrid"></div>
+    <div class="toolbar">
+      <button class="btn secondary" id="resetPairing">Réinitialiser le pairing de ce round</button>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-results">
+    <h2 class="section-title">Résultats réels — pairing en cours</h2>
+    <div class="hint">Renseigne ici le score réel de chaque table une fois la partie jouée, à partir du pairing verrouillé dans l'onglet « 4. Pairing en direct » (joueur + adversaire confirmés). Le score total de chaque équipe s'incrémente au fur et à mesure que tu remplis les tables.</div>
+
+    <div class="totals">
+      <div class="stat"><span class="v" id="resMyTotal">0</span><span class="l">Score total — mon équipe</span></div>
+      <div class="stat"><span class="v" id="resOppTotal">0</span><span class="l">Score total — équipe adverse</span></div>
+      <div class="stat"><span class="v" id="resFilled">0/6</span><span class="l">Tables avec résultat complet</span></div>
+    </div>
+
+    <div class="tables-grid" id="resultsGrid"></div>
+
+    <div class="toolbar">
+      <button class="btn secondary" id="resetResults">Réinitialiser les résultats saisis</button>
+    </div>
+  </div>
+
+  <div class="toolbar" style="align-items:center;">
+    <button class="btn secondary" id="exportBtn">💾 Exporter la configuration (JSON)</button>
+    <button class="btn secondary" id="importBtn">📂 Importer une configuration</button>
+    <button class="btn secondary" id="clearStorageBtn" style="border-color:var(--red);color:var(--red-bright);">🗑️ Effacer les données sauvegardées</button>
+    <input type="file" id="importFile" accept="application/json" style="display:none;">
+    <span id="autoSaveIndicator" style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--bone-dim);margin-left:auto;"></span>
+  </div>
+  <div class="footer-note">
+    Outil non-officiel, indépendant de Games Workshop. Les données de méta faction et d'affinité Battle Tactics × Battleplan sont des estimations de départ à ajuster selon ton propre scouting — utilise le bouton "Rafraîchir la méta" (onglet Matchups, avec ta propre clé API Gemini renseignée dans les Réglages Gemini) pour les mettre à jour via recherche web. Basé sur le General's Handbook 2026-27, saison Aqshy.
+  </div>
+
+</div>
+
+<script>
+let TEAM_SIZE = 6;
+
+// Factions Age of Sigmar par Grande Alliance (General's Handbook 2026-27)
+const FACTIONS_GROUPED = {
+  'Order': [
+    'Cities of Sigmar','Daughters of Khaine','Fyreslayers','Idoneth Deepkin',
+    'Kharadron Overlords','Lumineth Realm-lords','Seraphon','Stormcast Eternals','Sylvaneth'
+  ],
+  'Chaos': [
+    'Beasts of Chaos','Blades of Khorne','Disciples of Tzeentch','Hedonites of Slaanesh',
+    'Helsmiths of Hashut','Maggotkin of Nurgle','Skaven','Slaves to Darkness'
+  ],
+  'Death': [
+    'Flesh-eater Courts','Nighthaunt','Ossiarch Bonereapers','Soulblight Gravelords'
+  ],
+  'Destruction': [
+    'Bonesplitterz','Gloomspite Gitz','Ironjawz','Kruleboyz','Ogor Mawtribes','Sons of Behemat'
+  ]
+};
+
+// Les 6 Battle Tactics cards du General's Handbook 2026-27 (saison Aqshy).
+// Chaque liste en choisit jusqu'à 2 à la composition d'armée (noms officiels EN,
+// pas de VF officielle publiée par GW au moment de la rédaction de cet outil).
+const BATTLE_TACTICS = [
+  'Blazing Onslaught',
+  'Siege of Ashes',
+  'Flanking Firestorm',
+  'Smokescreen',
+  'Burning for Vengeance',
+  'Legend of the Parch'
+];
+
+// Les 12 battleplans du General's Handbook 2026-27.
+const BATTLEPLANS = [
+  'Into the Fire',
+  'Bloodstained Coasts',
+  'Avalanche of Ash',
+  'Caverns of Slaughter',
+  "What's Yours Is Ours",
+  'Hidden Under Ash-Clouds',
+  'Warped Ruins',
+  'Curse of the Gnaw',
+  'Seize the Embers',
+  'Treacherous Ground',
+  'Escape from the Coast',
+  'Power of the Realms'
+];
+
+// Dans la plupart des règlements de tournoi par équipe (WTC, ETC, AOSFF...), une même
+// Battle Tactics card ne peut pas être piochée par n'importe quel nombre de joueurs de
+// l'équipe : un plafond de doublons est imposé pour éviter que tout le monde joue la
+// même paire de cards. Ce plafond varie selon les organisateurs (souvent 2 pour une
+// équipe de 6), donc on le rend réglable. On calcule ici le plancher strictement
+// nécessaire pour qu'une génération complète reste possible (2 cards/joueur réparties
+// sur les 6 Battle Tactics du GHB), afin de ne jamais proposer une valeur bloquante par
+// défaut ni planter la génération si l'utilisateur choisit une valeur trop stricte.
+function minFeasibleTacticDuplicates(teamSize){
+  return Math.max(2, Math.ceil((2*teamSize) / BATTLE_TACTICS.length));
+}
+
+const MAX_OPP_TEAMS = 5;
+
+// Estimation d'un niveau de puissance par faction (-3 très faible à +3 très fort),
+// dérivée d'une synthèse de win rates / classements Elo de tournois GT publiés
+// mi-juillet 2026 (Woehammer Battlescroll, Best Coast Pairings, ChampionshipHub,
+// Milarki, Tabletop Herald, Longshanks...), en tout début de saison Aqshy.
+// C'est un instantané figé à cette date, pas une donnée temps réel : à ajuster toi-même
+// au fil de la méta, ou à rafraîchir via le bouton "Rafraîchir la méta via Claude"
+// (onglet Matchups) quand l'outil est ouvert dans Claude.ai.
+const FACTION_POWER = {
+  'Cities of Sigmar': 0, 'Daughters of Khaine': 3, 'Fyreslayers': -1, 'Idoneth Deepkin': 0,
+  'Kharadron Overlords': -2, 'Lumineth Realm-lords': 1, 'Seraphon': 1, 'Stormcast Eternals': 2, 'Sylvaneth': -1,
+  'Beasts of Chaos': -2, 'Blades of Khorne': 0, 'Disciples of Tzeentch': 1, 'Hedonites of Slaanesh': 2,
+  'Helsmiths of Hashut': 0, 'Maggotkin of Nurgle': -1, 'Skaven': 2, 'Slaves to Darkness': -1,
+  'Flesh-eater Courts': 0, 'Nighthaunt': -1, 'Ossiarch Bonereapers': 1, 'Soulblight Gravelords': 0,
+  'Bonesplitterz': -2, 'Gloomspite Gitz': -1, 'Ironjawz': 0, 'Kruleboyz': 1, 'Ogor Mawtribes': -2, 'Sons of Behemat': -3
+};
+const FACTION_POWER_SNAPSHOT_DATE = 'mi-juillet 2026';
+const FACTION_ORDER = [].concat(...Object.values(FACTIONS_GROUPED));
+// Niveau de puissance courant par faction, éditable dans l'onglet Configuration
+// (et rafraîchissable via Gemini depuis cet onglet ou l'onglet Matchups). Retombe sur
+// l'instantané figé FACTION_POWER tant que rien n'a encore été personnalisé/rafraîchi.
+function getFactionPower(f){
+  if(state.factionPower && state.factionPower[f]!==undefined) return state.factionPower[f];
+  return FACTION_POWER[f]||0;
+}
+function factionMetaKey(a,b){ return a+'|||'+b; }
+function buildDefaultFactionMeta(customPower){
+  const power = customPower || FACTION_POWER;
+  const meta = {};
+  FACTION_ORDER.forEach(a=>{
+    FACTION_ORDER.forEach(b=>{
+      const pa = power[a]!==undefined ? power[a] : 0;
+      const pb = power[b]!==undefined ? power[b] : 0;
+      meta[factionMetaKey(a,b)] = Math.max(-3, Math.min(3, pa-pb));
+    });
+  });
+  return meta;
+}
+
+// Affinité de départ Battle Tactics x Battleplan (-2 à +2), estimation basée sur la
+// lecture des cartes et des 12 battleplans du GHB 2026-27 (déploiements, position des
+// objectifs, mécaniques spéciales). Purement indicatif — à corriger au fil de tes games.
+function buildDefaultTacticMatrix(){
+  const T = BATTLE_TACTICS, B = BATTLEPLANS;
+  const m = T.map(()=>B.map(()=>0));
+  const set=(t,b,v)=>{ m[T.indexOf(t)][B.indexOf(b)] = v; };
+  // Blazing Onslaught (contrôler le hideout adverse, dégâts répétés) : missions avec
+  // beaucoup de terrain / hideouts potentiels et engagements rapprochés.
+  set('Blazing Onslaught','Warped Ruins',2); set('Blazing Onslaught','Caverns of Slaughter',1);
+  set('Blazing Onslaught','Into the Fire',1); set('Blazing Onslaught','Hidden Under Ash-Clouds',1);
+  set('Blazing Onslaught','Escape from the Coast',-1);
+  // Siege of Ashes (tenir en zone neutre, ravitailler un objectif en territoire ennemi) :
+  // missions avec zone neutre large ou déploiements profonds.
+  set('Siege of Ashes','Hidden Under Ash-Clouds',2); set('Siege of Ashes','Bloodstained Coasts',1);
+  set('Siege of Ashes','Power of the Realms',1); set('Siege of Ashes','Curse of the Gnaw',-1);
+  // Flanking Firestorm (prendre des objectifs/terrains hors territoire) : plutôt neutre,
+  // légèrement meilleur sur les missions à beaucoup d'objectifs dispersés.
+  set('Flanking Firestorm','Treacherous Ground',1); set('Flanking Firestorm','Seize the Embers',1);
+  set('Flanking Firestorm','What\'s Yours Is Ours',1); set('Flanking Firestorm','Avalanche of Ash',-1);
+  // Smokescreen (contester, perdre plus d'unités que l'adversaire, tenir tout le
+  // déploiement adverse) : dur, favorisé sur les missions à faible nombre d'unités adverses
+  // sur l'objectif central ou avec un déploiement adverse resserré.
+  set('Smokescreen','Curse of the Gnaw',1); set('Smokescreen','Power of the Realms',1);
+  set('Smokescreen','Escape from the Coast',-1); set('Smokescreen','Hidden Under Ash-Clouds',-1);
+  // Burning for Vengeance (marquer/traquer un héros adverse à travers le plateau) :
+  // meilleur sur les missions avec beaucoup d'espace / 4 quadrants marqués.
+  set('Burning for Vengeance','Escape from the Coast',2); set('Burning for Vengeance','Treacherous Ground',1);
+  set('Burning for Vengeance','Bloodstained Coasts',1); set('Burning for Vengeance','Caverns of Slaughter',-1);
+  // Legend of the Parch (bread and butter, situations de jeu très courantes) :
+  // fiable partout, léger bonus sur les missions "classiques" à objectifs simples.
+  set('Legend of the Parch','Power of the Realms',1); set('Legend of the Parch',"What's Yours Is Ours",1);
+  set('Legend of the Parch','Seize the Embers',1); set('Legend of the Parch','Avalanche of Ash',1);
+  return m;
+}
+
+function makeOppTeam(n){
+  return {
+    name: 'Équipe adverse '+n,
+    roster: Array.from({length:TEAM_SIZE}, ()=>({name:'', faction:'', tactic1:'', tactic2:''})),
+    matchup: Array.from({length:TEAM_SIZE}, ()=>Array(TEAM_SIZE).fill(0)),
+    oppFit: Array.from({length:TEAM_SIZE}, ()=>Array(TEAM_SIZE).fill(0))
+  };
+}
+
+let state = {
+  myTeam: Array.from({length:TEAM_SIZE}, (_,i)=>({name:'', faction:'', tactic1:'', tactic2:''})),
+  oppTeams: [ makeOppTeam(1) ],
+  activeOppIdx: 0,
+  liveOppIdx: 0,
+  tables: Array.from({length:TEAM_SIZE}, (_,i)=>({name:'', battleplan:''})),
+  myFit: Array.from({length:TEAM_SIZE}, ()=>Array(TEAM_SIZE).fill(0)),
+  tacticMatrix: buildDefaultTacticMatrix(),
+  factionMeta: buildDefaultFactionMeta(),
+  factionMetaUpdatedLabel: 'Estimation de départ (' + FACTION_POWER_SNAPSHOT_DATE + ')',
+  factionPower: Object.assign({}, FACTION_POWER),
+  pairing: Array.from({length:TEAM_SIZE}, ()=>({myList:null, oppList:null, myScore:null, oppScore:null})),
+  mode: 'expected',
+  // Doublons max autorisés pour une même Battle Tactics card dans mon équipe lors de la
+  // génération aléatoire (règle de tournoi par équipe façon WTC/ETC/AOSFF). Réglable dans
+  // l'onglet Configuration.
+  maxTacticDuplicates: minFeasibleTacticDuplicates(TEAM_SIZE)
+};
+
+function activeOppTeam(){ return state.oppTeams[state.activeOppIdx]; }
+function liveOppTeam(){ return state.oppTeams[state.liveOppIdx]; }
+
+function resizeArrayTo(arr, newSize, factory){
+  const copy = arr.slice(0, newSize);
+  while(copy.length < newSize) copy.push(factory());
+  return copy;
+}
+function resizeMatrixTo(mat, newSize){
+  const copy = [];
+  for(let i=0;i<newSize;i++){
+    const row=[];
+    for(let j=0;j<newSize;j++){
+      row.push(mat[i] && mat[i][j]!==undefined ? mat[i][j] : 0);
+    }
+    copy.push(row);
+  }
+  return copy;
+}
+function hasDataBeyond(newSize){
+  const beyond = (arr)=>arr.slice(newSize).some(e=>e && (e.name||e.faction||e.tactic1||e.tactic2||e.battleplan));
+  const oppBeyond = state.oppTeams.some(ot=>beyond(ot.roster));
+  return beyond(state.myTeam) || oppBeyond || beyond(state.tables);
+}
+function setTeamSize(newSize){
+  if(newSize === TEAM_SIZE) return;
+  if(newSize < TEAM_SIZE && hasDataBeyond(newSize)){
+    const ok = confirm(`Passer à ${newSize} joueurs va supprimer les données saisies pour les emplacements ${newSize+1} à ${TEAM_SIZE}. Continuer ?`);
+    if(!ok){
+      document.getElementById('teamSizeSelect').value = String(TEAM_SIZE);
+      return;
+    }
+  }
+  TEAM_SIZE = newSize;
+  state.myTeam = resizeArrayTo(state.myTeam, TEAM_SIZE, ()=>({name:'', faction:'', tactic1:'', tactic2:''}));
+  state.tables = resizeArrayTo(state.tables, TEAM_SIZE, ()=>({name:'', battleplan:''}));
+  state.myFit = resizeMatrixTo(state.myFit, TEAM_SIZE);
+  state.oppTeams.forEach(ot=>{
+    ot.roster = resizeArrayTo(ot.roster, TEAM_SIZE, ()=>({name:'', faction:'', tactic1:'', tactic2:''}));
+    ot.matchup = resizeMatrixTo(ot.matchup, TEAM_SIZE);
+    ot.oppFit = resizeMatrixTo(ot.oppFit, TEAM_SIZE);
+  });
+  state.pairing = resizeArrayTo(state.pairing, TEAM_SIZE, ()=>({myList:null, oppList:null, myScore:null, oppScore:null}));
+  // Si le plafond de doublons actuel est devenu insuffisant pour ce nouveau format
+  // d'équipe (ex: passage de 6 à 8 joueurs), on le relève au minimum jouable ; s'il était
+  // déjà plus permissif que ce minimum, on ne touche pas au réglage de l'utilisateur.
+  const minFeasible = minFeasibleTacticDuplicates(TEAM_SIZE);
+  if(!state.maxTacticDuplicates || state.maxTacticDuplicates < minFeasible){
+    state.maxTacticDuplicates = minFeasible;
+  }
+  state.pairing.forEach(p=>{
+    if(p.myList!==null && p.myList>=TEAM_SIZE) p.myList=null;
+    if(p.oppList!==null && p.oppList>=TEAM_SIZE) p.oppList=null;
+  });
+  document.getElementById('formatSub').textContent = `Team Event · Format ${TEAM_SIZE}v${TEAM_SIZE} · General's Handbook 2026-27 (Aqshy)`;
+  renderAll();
+}
+
+/* ---------- Gestion des équipes adverses (jusqu'à 5) ---------- */
+function addOppTeam(){
+  if(state.oppTeams.length >= MAX_OPP_TEAMS) return;
+  state.oppTeams.push(makeOppTeam(state.oppTeams.length+1));
+  state.activeOppIdx = state.oppTeams.length-1;
+  renderAll();
+}
+function removeOppTeam(idx){
+  if(state.oppTeams.length <= 1) return;
+  const ok = confirm(`Supprimer « ${state.oppTeams[idx].name} » et toutes ses données (roster, matchups, affinités) ?`);
+  if(!ok) return;
+  state.oppTeams.splice(idx,1);
+  if(state.activeOppIdx >= state.oppTeams.length) state.activeOppIdx = state.oppTeams.length-1;
+  if(state.liveOppIdx >= state.oppTeams.length){
+    state.liveOppIdx = state.oppTeams.length-1;
+    state.pairing = Array.from({length:TEAM_SIZE}, ()=>({myList:null, oppList:null, myScore:null, oppScore:null}));
+  }
+  renderAll();
+}
+
+/* ---------- Génération aléatoire (pour simulations de pairing) ---------- */
+const RANDOM_PLAYER_NAMES = [
+  'Vex','Kroll','Sarn','Drezz','Malik','Orin','Fenn','Rurik','Thess','Ilya',
+  'Corvin','Bastian','Yrsa','Draven','Nyx','Kael','Sorin','Halvard','Petra','Zev',
+  'Ossian','Lior','Brand','Tamsin','Ragnor','Cass','Vidar','Elric','Sable','Torin'
+];
+const RANDOM_TEAM_NAMES = [
+  'Les Salamandres d\'Aqshy','Team Cendre-Feu','Escouade Braise','Les Faucons Rouges',
+  'Team Grimoire','Les Spectres','Bataillon Onyx','Team Comète','Les Chacals',
+  'Escadron Vipère','Team Cendrion','Les Gardiens du Seuil'
+];
+const RANDOM_TABLE_NAMES = [
+  'Le Grand Parch','Les Cendres Fumantes','Le Cratère','Zone Interdite',
+  'Pont des Damnés','Les Flèches Brisées','Terrain Vague 12','Le Bastion Oublié',
+  'Champ de Reliques','La Faille','Poste Avancé Kappa','Les Tours Jumelles',
+  'Le Marécage Gris','Rivage d\'Ambre','La Nécropole','Le Défilé',
+  'Zone Sanctifiée','Les Barricades','Le Cimetière de Titans','Le Croisement'
+];
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+function randomizeOppTeam(idx){
+  const ot = state.oppTeams[idx];
+  if(!ot) return;
+  const names = shuffle(RANDOM_PLAYER_NAMES);
+  const factions = shuffle(FACTION_ORDER);
+  ot.name = RANDOM_TEAM_NAMES[Math.floor(Math.random()*RANDOM_TEAM_NAMES.length)];
+  // Même règle de tournoi par équipe que pour mon équipe (plafond de doublons réglable
+  // pour une même Battle Tactics card, façon WTC/ETC/AOSFF) : ici on ne connaît pas de
+  // classement méta pour l'adversaire, donc le tirage se fait au hasard parmi les cards
+  // encore disponibles sous le plafond, plutôt qu'en favorisant les mieux notées.
+  const usage = {};
+  BATTLE_TACTICS.forEach(t=>{ usage[t] = 0; });
+  ot.roster = Array.from({length:TEAM_SIZE}, (_,i)=>{
+    let cap = state.maxTacticDuplicates || minFeasibleTacticDuplicates(TEAM_SIZE);
+    let available = BATTLE_TACTICS.filter(t=>usage[t] < cap);
+    while(available.length < 2 && cap < BATTLE_TACTICS.length){
+      cap++;
+      available = BATTLE_TACTICS.filter(t=>usage[t] < cap);
+    }
+    const pair = shuffle(available).slice(0,2);
+    pair.forEach(t=>{ usage[t] = (usage[t]||0) + 1; });
+    return {
+      name: names[i % names.length],
+      faction: factions[i % factions.length],
+      tactic1: pair[0] || '', tactic2: pair[1] || ''
+    };
+  });
+  // On repart d'une matrice à 0 puis on applique la méta faction vs faction pour
+  // pré-remplir des matchups plausibles (comme le bouton "Appliquer la méta").
+  ot.matchup = Array.from({length:TEAM_SIZE}, ()=>Array(TEAM_SIZE).fill(0));
+  ot.oppFit = Array.from({length:TEAM_SIZE}, ()=>Array(TEAM_SIZE).fill(0));
+  applyFactionMetaToTeam(ot, true);
+}
+function randomizeAllOppTeams(){
+  state.oppTeams.forEach((_,idx)=>randomizeOppTeam(idx));
+  renderAll();
+}
+
+/* ---------- Génération de MON équipe : meilleur roster selon la méta ---------- */
+// Tirage pondéré : chaque faction a une chance proportionnelle à exp(puissance meta),
+// donc les factions les mieux classées (FACTION_POWER) sortent bien plus souvent, sans
+// jamais être exclues à 100% (une "petite" faction reste tirable, juste plus rarement).
+// Aucune faction n'est dupliquée dans le roster généré.
+function weightedFactionDraw(count){
+  const pool = FACTION_ORDER.map(f=>({ f, w: Math.exp(getFactionPower(f)) }));
+  const picked = [];
+  for(let i=0; i<count && pool.length>0; i++){
+    const totalW = pool.reduce((s,p)=>s+p.w, 0);
+    let r = Math.random()*totalW;
+    let idx = pool.length-1;
+    for(let k=0;k<pool.length;k++){
+      r -= pool[k].w;
+      if(r<=0){ idx=k; break; }
+    }
+    picked.push(pool[idx].f);
+    pool.splice(idx,1);
+  }
+  return picked;
+}
+// Classe les 6 Battle Tactics cards par note moyenne sur les battleplans réellement en
+// jeu (colonnes "Tables" déjà renseignées), ou sur les 12 battleplans si aucune table
+// n'est encore configurée. Sert à proposer les cards les plus rentables de la méta.
+function rankTacticsByMeta(){
+  const chosenBattleplans = state.tables.map(t=>t.battleplan).filter(Boolean);
+  const bIdxs = chosenBattleplans.length
+    ? [...new Set(chosenBattleplans.map(bp=>BATTLEPLANS.indexOf(bp)).filter(x=>x>=0))]
+    : BATTLEPLANS.map((_,i)=>i);
+  return BATTLE_TACTICS
+    .map((t,ti)=>{
+      const sum = bIdxs.reduce((s,bi)=>s + (state.tacticMatrix[ti] ? state.tacticMatrix[ti][bi] : 0), 0);
+      return { t, avg: bIdxs.length ? sum/bIdxs.length : 0 };
+    })
+    .sort((a,b)=>b.avg-a.avg);
+}
+function hasMyTeamData(){
+  return state.myTeam.some(e=>e && (e.name||e.faction||e.tactic1||e.tactic2));
+}
+function randomizeMyTeam(){
+  const names = shuffle(RANDOM_PLAYER_NAMES);
+  const factions = weightedFactionDraw(TEAM_SIZE);
+  const ranked = rankTacticsByMeta();
+  // Plafond de doublons pour une même Battle Tactics card dans l'équipe (règle de
+  // tournoi par équipe façon WTC/ETC/AOSFF, réglable dans l'UI juste au-dessus du
+  // bouton de génération).
+  const usage = {};
+  ranked.forEach(r=>{ usage[r.t] = 0; });
+
+  state.myTeam = Array.from({length:TEAM_SIZE}, (_,i)=>{
+    // Cards encore disponibles sous le plafond configuré. Si moins de 2 cards restent
+    // disponibles (plafond trop strict pour ce format d'équipe), on relâche le plafond
+    // par paliers pour cette pioche uniquement, afin de ne jamais bloquer la génération.
+    let cap = state.maxTacticDuplicates || minFeasibleTacticDuplicates(TEAM_SIZE);
+    let available = ranked.filter(r=>usage[r.t] < cap).map(r=>r.t);
+    while(available.length < 2 && cap < BATTLE_TACTICS.length){
+      cap++;
+      available = ranked.filter(r=>usage[r.t] < cap).map(r=>r.t);
+    }
+    // Vivier des meilleures cards encore disponibles (top 4 max) : chaque joueur pioche
+    // 2 cards dans ce vivier, mélangées, pour varier les paires tout en restant sur les
+    // cards les plus performantes selon la méta et en respectant le plafond de doublons.
+    const pool = available.slice(0, Math.min(4, available.length));
+    const tacticPair = shuffle(pool.length>=2 ? pool : available).slice(0,2);
+    tacticPair.forEach(t=>{ usage[t] = (usage[t]||0) + 1; });
+    return {
+      name: names[i % names.length],
+      faction: factions[i] || FACTION_ORDER[i % FACTION_ORDER.length],
+      tactic1: tacticPair[0] || '',
+      tactic2: tacticPair[1] || ''
+    };
+  });
+}
+function randomizeTableNames(){
+  const namePool = shuffle(RANDOM_TABLE_NAMES);
+  // On mélange les 12 battleplans et on les distribue sans doublon (il y a au max
+  // 8 tables pour 12 battleplans possibles). Si jamais il y avait plus de tables que
+  // de battleplans, on reboucle sur un second mélange plutôt que de répéter le même ordre.
+  const battleplanPool = shuffle(BATTLEPLANS);
+  state.tables.forEach((t,i)=>{
+    t.name = namePool[i % namePool.length];
+    t.battleplan = battleplanPool[i % battleplanPool.length];
+  });
+  renderAll();
+}
+
+function renderOppTeamTabsInto(containerId){
+  const el = document.getElementById(containerId);
+  if(!el) return;
+  el.innerHTML='';
+  state.oppTeams.forEach((ot,idx)=>{
+    const btn=document.createElement('button');
+    btn.className='opp-pill'+(idx===state.activeOppIdx?' active':'');
+    btn.textContent = ot.name && ot.name.trim() ? ot.name : ('Équipe adverse '+(idx+1));
+    btn.addEventListener('click', ()=>{ state.activeOppIdx = idx; renderAll(); });
+    el.appendChild(btn);
+  });
+  const addBtn=document.createElement('button');
+  addBtn.className='opp-pill add';
+  addBtn.textContent='+ Ajouter (max '+MAX_OPP_TEAMS+')';
+  addBtn.disabled = state.oppTeams.length>=MAX_OPP_TEAMS;
+  addBtn.addEventListener('click', addOppTeam);
+  el.appendChild(addBtn);
+}
+function renderOppTeamPanel(){
+  const el = document.getElementById('oppTeamPanel');
+  if(!el) return;
+  const ot = activeOppTeam();
+  const idx = state.activeOppIdx;
+  el.innerHTML = `
+    <div class="opp-team-panel-head">
+      <input type="text" id="oppTeamNameInput" value="${ot.name||''}" placeholder="Nom de l'équipe adverse">
+      <button class="btn danger" id="oppTeamDeleteBtn" ${state.oppTeams.length<=1?'disabled':''}>Supprimer cette équipe</button>
+    </div>
+    <div class="roster-grid" id="oppRosterActive"></div>
+  `;
+  document.getElementById('oppTeamNameInput').addEventListener('input', e=>{
+    ot.name = e.target.value;
+    renderOppTeamTabsInto('oppTeamTabsSetup');
+    renderOppTeamTabsInto('oppTeamTabsMatchups');
+    renderOppTeamTabsInto('oppTeamTabsMissions');
+    renderLiveOppSelect();
+  });
+  document.getElementById('oppTeamDeleteBtn').addEventListener('click', ()=>removeOppTeam(idx));
+  renderRoster('oppRosterActive', ot.roster);
+}
+function renderLiveOppSelect(){
+  const sel = document.getElementById('liveOppSelect');
+  if(!sel) return;
+  const prev = state.liveOppIdx;
+  sel.innerHTML = state.oppTeams.map((ot,idx)=>
+    `<option value="${idx}" ${idx===prev?'selected':''}>${ot.name && ot.name.trim() ? ot.name : ('Équipe adverse '+(idx+1))}</option>`
+  ).join('');
+}
+
+/* ---------- Score ---------- */
+function tacticIdxs(entry){
+  const idxs = [entry.tactic1, entry.tactic2].map(t=>BATTLE_TACTICS.indexOf(t)).filter(x=>x>=0);
+  return [...new Set(idxs)];
+}
+function tacticBattleplanBonus(entry, tableIdx){
+  const table = state.tables[tableIdx];
+  if(!table || !table.battleplan) return 0;
+  const bi = BATTLEPLANS.indexOf(table.battleplan);
+  if(bi<0) return 0;
+  const idxs = tacticIdxs(entry);
+  if(idxs.length===0) return 0;
+  const sum = idxs.reduce((s,ti)=>s+state.tacticMatrix[ti][bi],0);
+  return sum/idxs.length;
+}
+function calcScore(i,j,t){
+  const ot = liveOppTeam();
+  let s = ot.matchup[i][j] + state.myFit[i][t] - ot.oppFit[j][t];
+  s += tacticBattleplanBonus(state.myTeam[i], t) - tacticBattleplanBonus(ot.roster[j], t);
+  return s;
+}
+
+/* ---------- Hungarian algorithm (minimization), 1-indexed, e-maxx style ---------- */
+function hungarianMin(costMatrix0){ // costMatrix0: n x n, 0-indexed
+  const n = costMatrix0.length;
+  const INF = 1e9;
+  const a = [null]; // 1-indexed rows
+  for(let i=0;i<n;i++){
+    const row=[null];
+    for(let j=0;j<n;j++) row.push(costMatrix0[i][j]);
+    a.push(row);
+  }
+  const u=new Array(n+1).fill(0), v=new Array(n+1).fill(0);
+  const p=new Array(n+1).fill(0), way=new Array(n+1).fill(0);
+  for(let i=1;i<=n;i++){
+    p[0]=i; let j0=0;
+    const minv=new Array(n+1).fill(INF);
+    const used=new Array(n+1).fill(false);
+    do{
+      used[j0]=true;
+      const i0=p[j0]; let delta=INF, j1=-1;
+      for(let j=1;j<=n;j++){
+        if(!used[j]){
+          const cur=a[i0][j]-u[i0]-v[j];
+          if(cur<minv[j]){minv[j]=cur; way[j]=j0;}
+          if(minv[j]<delta){delta=minv[j]; j1=j;}
+        }
+      }
+      for(let j=0;j<=n;j++){
+        if(used[j]){u[p[j]]+=delta; v[j]-=delta;}
+        else{minv[j]-=delta;}
+      }
+      j0=j1;
+    }while(p[j0]!==0);
+    do{
+      const j1=way[j0];
+      p[j0]=p[j1];
+      j0=j1;
+    }while(j0);
+  }
+  const rowAssign=new Array(n).fill(-1);
+  for(let j=1;j<=n;j++){ if(p[j]>0) rowAssign[p[j]-1]=j-1; }
+  return rowAssign; // rowAssign[i] = j (0-indexed)
+}
+
+function optimalAssignment(myIdxList, tableIdxList, valueFn){
+  const nMy = myIdxList.length, nT = tableIdxList.length;
+  if(nMy===0 || nT===0) return {assign:[], total:0};
+  // L'algorithme hongrois ci-dessus exige une matrice carrée. Comme le calcul se fait
+  // maintenant en deux phases (tables connues, puis tables inconnues), les deux listes
+  // n'ont pas forcément la même taille : on complète avec des lignes/colonnes fictives
+  // de valeur 0, puis on ignore les affectations fictives dans le résultat.
+  const n = Math.max(nMy, nT);
+  const cost = [];
+  for(let i=0;i<n;i++){
+    const row=[];
+    for(let tt=0;tt<n;tt++){
+      const v = (i<nMy && tt<nT) ? valueFn(myIdxList[i], tableIdxList[tt]) : 0;
+      row.push(-v);
+    }
+    cost.push(row);
+  }
+  const rowAssign = hungarianMin(cost);
+  let total=0;
+  const assign=[];
+  rowAssign.forEach((tt,i)=>{
+    if(i<nMy && tt<nT){
+      const v = valueFn(myIdxList[i], tableIdxList[tt]);
+      total+=v;
+      assign.push({myIdx:myIdxList[i], tableIdx:tableIdxList[tt], value:v});
+    }
+  });
+  return {assign, total};
+}
+
+/* ---------- Rendering: Setup ---------- */
+function factionOptionsHtml(selected){
+  let html = `<option value="">— Faction —</option>`;
+  Object.entries(FACTIONS_GROUPED).forEach(([group, list])=>{
+    html += `<optgroup label="${group}">`;
+    list.forEach(f=>{
+      html += `<option value="${f}" ${selected===f?'selected':''}>${f}</option>`;
+    });
+    html += `</optgroup>`;
+  });
+  return html;
+}
+
+function tacticOptionsHtml(selected){
+  let html = `<option value="">— Battle Tactic —</option>`;
+  BATTLE_TACTICS.forEach(t=>{
+    html += `<option value="${t}" ${selected===t?'selected':''}>${t}</option>`;
+  });
+  return html;
+}
+
+function battleplanOptionsHtml(selected){
+  let html = `<option value="">— Battleplan —</option>`;
+  BATTLEPLANS.forEach(b=>{
+    html += `<option value="${b}" ${selected===b?'selected':''}>${b}</option>`;
+  });
+  return html;
+}
+
+function renderRoster(containerId, arr){
+  const el = document.getElementById(containerId);
+  el.innerHTML='';
+  arr.forEach((entry,i)=>{
+    const row=document.createElement('div');
+    row.className='roster-row';
+    row.innerHTML = `<span class="num">${i+1}</span>
+      <input type="text" placeholder="Nom du joueur" value="${entry.name||''}" data-idx="${i}" data-field="name">
+      <select data-idx="${i}" data-field="faction">${factionOptionsHtml(entry.faction)}</select>
+      <select class="tactic-sel" data-idx="${i}" data-field="tactic1">${tacticOptionsHtml(entry.tactic1)}</select>
+      <select class="tactic-sel" data-idx="${i}" data-field="tactic2">${tacticOptionsHtml(entry.tactic2)}</select>`;
+    el.appendChild(row);
+  });
+  el.querySelectorAll('input,select').forEach(inp=>{
+    inp.addEventListener(inp.tagName==='SELECT' ? 'change' : 'input', e=>{
+      const idx=+e.target.dataset.idx, field=e.target.dataset.field;
+      arr[idx][field]=e.target.value;
+      renderAll();
+    });
+  });
+}
+
+function renderTableRoster(){
+  const el = document.getElementById('tableRoster');
+  el.innerHTML='';
+  state.tables.forEach((t,i)=>{
+    const row=document.createElement('div');
+    row.className='roster-row';
+    row.innerHTML = `<span class="num">${i+1}</span>
+      <input type="text" placeholder="Nom (ex: Table 1)" value="${t.name||''}" data-idx="${i}" data-field="name">
+      <select data-idx="${i}" data-field="battleplan">${battleplanOptionsHtml(t.battleplan)}</select>`;
+    el.appendChild(row);
+  });
+  el.querySelectorAll('input,select').forEach(inp=>{
+    inp.addEventListener(inp.tagName==='SELECT' ? 'change' : 'input', e=>{
+      const idx=+e.target.dataset.idx, field=e.target.dataset.field;
+      state.tables[idx][field] = e.target.value;
+      renderAll();
+    });
+  });
+}
+
+function displayName(entry, fallback){
+  return entry.name && entry.name.trim() ? entry.name : fallback;
+}
+
+/* ---------- Rendering: Matchup matrix ---------- */
+function renderMatrix(tableId, rowLabels, colLabels, dataArr, min, max, onChange){
+  const table = document.getElementById(tableId);
+  table.innerHTML='';
+  const thead = document.createElement('tr');
+  thead.innerHTML = '<th class="corner"></th>' + colLabels.map(c=>`<th title="${c}">${c}</th>`).join('');
+  table.appendChild(thead);
+  rowLabels.forEach((rLabel, ri)=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML = `<td class="rowhead" title="${rLabel}">${rLabel}</td>`;
+    colLabels.forEach((c,ci)=>{
+      const td=document.createElement('td');
+      const val = dataArr[ri][ci];
+      td.style.background = cellColor(val, min, max);
+      const inp=document.createElement('input');
+      inp.type='number'; inp.min=min; inp.max=max; inp.step=1; inp.value=val;
+      inp.addEventListener('input', e=>{
+        let v = parseInt(e.target.value||0,10);
+        if(isNaN(v)) v=0;
+        v = Math.max(min, Math.min(max, v));
+        dataArr[ri][ci]=v;
+        td.style.background = cellColor(v, min, max);
+        onChange && onChange();
+      });
+      td.appendChild(inp);
+      tr.appendChild(td);
+    });
+    table.appendChild(tr);
+  });
+}
+
+function cellColor(v, min, max){
+  if(v===0) return 'transparent';
+  const t = v>0 ? v/max : v/min; // 0..1
+  const alpha = 0.12 + 0.18*t;
+  return v>0 ? `rgba(78,122,92,${alpha+0.15})` : `rgba(163,53,47,${alpha+0.15})`;
+}
+
+function myLabels(){ return state.myTeam.map((e,i)=>displayName(e, 'Joueur '+(i+1))); }
+function oppLabels(roster){ return roster.map((e,i)=>displayName(e, 'Adv. '+(i+1))); }
+function tableLabels(){
+  return state.tables.map((t,i)=>{
+    if(t.battleplan) return t.battleplan;
+    if(t.name && t.name.trim()) return t.name;
+    return 'Table '+(i+1);
+  });
+}
+function withFaction(label, faction){ return faction && faction.trim() ? `${label} (${faction})` : label; }
+function myLabelsWithFaction(){ return state.myTeam.map((e,i)=>withFaction(displayName(e,'Joueur '+(i+1)), e.faction)); }
+function oppLabelsWithFaction(roster){ return roster.map((e,i)=>withFaction(displayName(e,'Adv. '+(i+1)), e.faction)); }
+
+/* ---------- Meta faction vs faction (basée sur des résultats de tournoi) ---------- */
+function sortFactionsByGroup(list){
+  return list.slice().sort((a,b)=>FACTION_ORDER.indexOf(a)-FACTION_ORDER.indexOf(b));
+}
+function allMyFactions(){
+  const set=[];
+  state.myTeam.forEach(e=>{ if(e.faction && !set.includes(e.faction)) set.push(e.faction); });
+  return sortFactionsByGroup(set);
+}
+function allOppFactionsInUse(){
+  const set=[];
+  state.oppTeams.forEach(ot=>ot.roster.forEach(e=>{ if(e.faction && !set.includes(e.faction)) set.push(e.faction); }));
+  return sortFactionsByGroup(set);
+}
+function getFactionMeta(a,b){ const v=state.factionMeta[factionMetaKey(a,b)]; return v===undefined?0:v; }
+function setFactionMeta(a,b,v){ state.factionMeta[factionMetaKey(a,b)]=v; }
+
+// Tableau (onglet Configuration) du niveau de puissance méta par faction : contrairement
+// au tableau de suggestion de matchups ci-dessous (qui ne montre que les factions déjà
+// présentes dans un roster), celui-ci liste TOUTES les factions possibles, puisqu'il sert
+// à générer un roster qui n'existe pas encore.
+function renderFactionPowerTable(){
+  const table = document.getElementById('factionPowerMatrix');
+  const statusEl = document.getElementById('factionPowerStatus');
+  if(!table) return;
+  if(statusEl && state.factionMetaUpdatedLabel) statusEl.textContent = state.factionMetaUpdatedLabel + '.';
+  table.innerHTML = '';
+  Object.entries(FACTIONS_GROUPED).forEach(([group, list])=>{
+    const groupRow = document.createElement('tr');
+    groupRow.innerHTML = `<th colspan="2" style="text-align:left;">${group}</th>`;
+    table.appendChild(groupRow);
+    list.forEach(f=>{
+      const tr = document.createElement('tr');
+      const tdLabel = document.createElement('td');
+      tdLabel.className = 'rowhead';
+      tdLabel.title = f;
+      tdLabel.textContent = f;
+      tr.appendChild(tdLabel);
+      const tdVal = document.createElement('td');
+      const val = getFactionPower(f);
+      tdVal.style.background = cellColor(val, -3, 3);
+      const inp = document.createElement('input');
+      inp.type='number'; inp.min=-3; inp.max=3; inp.step=1; inp.value=val;
+      inp.addEventListener('input', e=>{
+        let v=parseInt(e.target.value||0,10); if(isNaN(v)) v=0; v=Math.max(-3,Math.min(3,v));
+        if(!state.factionPower) state.factionPower = Object.assign({}, FACTION_POWER);
+        state.factionPower[f] = v;
+        tdVal.style.background = cellColor(v,-3,3);
+      });
+      tdVal.appendChild(inp);
+      tr.appendChild(tdVal);
+      table.appendChild(tr);
+    });
+  });
+}
+
+function renderFactionMetaMatrix(){
+  const myF = allMyFactions(), oppF = allOppFactionsInUse();
+  const wrap = document.getElementById('factionMetaWrap');
+  const emptyMsg = document.getElementById('factionMetaEmpty');
+  const table = document.getElementById('factionMetaMatrix');
+  const statusEl = document.getElementById('factionMetaStatus');
+  if(!table) return;
+  if(statusEl && state.factionMetaUpdatedLabel) statusEl.textContent = state.factionMetaUpdatedLabel + '.';
+  table.innerHTML='';
+  if(myF.length===0 || oppF.length===0){
+    emptyMsg.style.display='block';
+    wrap.style.display='none';
+    return;
+  }
+  emptyMsg.style.display='none';
+  wrap.style.display='block';
+  const thead=document.createElement('tr');
+  thead.innerHTML='<th class="corner"></th>'+oppF.map(f=>`<th title="${f}">${f}</th>`).join('');
+  table.appendChild(thead);
+  myF.forEach(a=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td class="rowhead" title="${a}">${a}</td>`;
+    oppF.forEach(b=>{
+      const td=document.createElement('td');
+      const val=getFactionMeta(a,b);
+      td.style.background=cellColor(val,-3,3);
+      const inp=document.createElement('input');
+      inp.type='number'; inp.min=-3; inp.max=3; inp.step=1; inp.value=val;
+      inp.addEventListener('input', e=>{
+        let v=parseInt(e.target.value||0,10); if(isNaN(v)) v=0; v=Math.max(-3,Math.min(3,v));
+        setFactionMeta(a,b,v);
+        td.style.background=cellColor(v,-3,3);
+      });
+      td.appendChild(inp);
+      tr.appendChild(td);
+    });
+    table.appendChild(tr);
+  });
+}
+
+function applyFactionMetaToTeam(ot, overwrite){
+  let count=0;
+  for(let i=0;i<TEAM_SIZE;i++){
+    const mf = state.myTeam[i].faction;
+    if(!mf) continue;
+    for(let j=0;j<TEAM_SIZE;j++){
+      const of = ot.roster[j].faction;
+      if(!of) continue;
+      const key = factionMetaKey(mf,of);
+      if(!(key in state.factionMeta)) continue;
+      if(!overwrite && ot.matchup[i][j]!==0) continue;
+      ot.matchup[i][j] = state.factionMeta[key];
+      count++;
+    }
+  }
+  return count;
+}
+
+/* ---------- Réglages Gemini (clé API personnelle, stockée uniquement en local) ---------- */
+// Stockage volontairement séparé de `state` : cette clé ne doit jamais se retrouver dans
+// un export/import JSON de configuration (qu'on pourrait partager à quelqu'un d'autre).
+const GEMINI_SETTINGS_KEY = 'aos-pairing-tool-gemini-settings-v1';
+function loadGeminiSettings(){
+  try{
+    const raw = localStorage.getItem(GEMINI_SETTINGS_KEY);
+    if(!raw) return { apiKey:'' };
+    const parsed = JSON.parse(raw);
+    return { apiKey: parsed.apiKey || '' };
+  }catch(e){
+    return { apiKey:'' };
+  }
+}
+function saveGeminiSettings(settings){
+  try{ localStorage.setItem(GEMINI_SETTINGS_KEY, JSON.stringify(settings)); return true; }
+  catch(e){ return false; }
+}
+// Panneau de réglages Gemini : rendu générique pour pouvoir être branché à la fois sur
+// l'onglet Matchups et sur l'onglet Configuration (deux boutons distincts, une seule clé
+// API partagée en stockage local).
+function initGeminiSettingsPanel(ids){
+  const panel = document.getElementById(ids.panel);
+  const toggleBtn = document.getElementById(ids.toggleBtn);
+  const keyInput = document.getElementById(ids.keyInput);
+  const saveBtn = document.getElementById(ids.saveBtn);
+  const savedIndicator = document.getElementById(ids.savedIndicator);
+  if(!panel || !toggleBtn || !keyInput || !saveBtn) return;
+  keyInput.value = loadGeminiSettings().apiKey;
+  toggleBtn.addEventListener('click', ()=>{
+    keyInput.value = loadGeminiSettings().apiKey;
+    panel.style.display = panel.style.display==='none' ? 'block' : 'none';
+  });
+  saveBtn.addEventListener('click', ()=>{
+    const ok = saveGeminiSettings({ apiKey: keyInput.value.trim() });
+    savedIndicator.textContent = ok ? '✓ Clé enregistrée sur cet appareil' : '⚠ Échec de l\'enregistrement';
+    setTimeout(()=>{ savedIndicator.textContent=''; }, 3000);
+  });
+}
+
+function extractJsonObject(text){
+  const cleaned = text.replace(/```json|```/g,'');
+  const match = cleaned.match(/\{[\s\S]*\}/);
+  if(!match) throw new Error('Réponse reçue mais sans JSON exploitable.');
+  // Gemini (et parfois Claude) renvoie occasionnellement des nombres avec un signe "+"
+  // explicite (ex: "Faction": +1), qui n'est pas un nombre JSON valide (seul -1/1 le sont).
+  // On le retire avant de parser, sans toucher au signe "-" ni au reste du texte.
+  const sanitized = match[0].replace(/:(\s*)\+(\d)/g, ':$1$2');
+  return JSON.parse(sanitized);
+}
+
+/* ---------- Rafraîchissement de la méta via Gemini (clé API perso, recherche web) ---------- */
+// Interroge Gemini et renvoie le score de puissance par faction (ou null en cas d'échec /
+// annulation). Ne touche pas au state : appelée depuis l'onglet Matchups ET l'onglet
+// Configuration, chacun avec son propre bouton/statut, mais le résultat alimente ensuite
+// les deux à la fois via applyFactionPowerLevels ci-dessous.
+async function fetchFactionPowerLevelsFromGemini(statusEl, btn){
+  if(!statusEl || !btn) return null;
+  const apiKey = loadGeminiSettings().apiKey;
+  if(!apiKey){
+    statusEl.textContent = "Aucune clé API Gemini renseignée. Ouvre \"⚙️ Réglages Gemini\" ci-dessus pour l'ajouter (clé gratuite sur aistudio.google.com).";
+    return null;
+  }
+  btn.disabled = true;
+  const prevLabel = btn.textContent;
+  btn.textContent = 'Recherche en cours…';
+  statusEl.textContent = 'Interrogation de Gemini (recherche web sur les tournois récents)… ça peut prendre 10-30 secondes.';
+  try{
+    const factionList = FACTION_ORDER.join(', ');
+    const prompt = `Cherche des données récentes de méta compétitive Warhammer Age of Sigmar, saison General's Handbook 2026-27 (Aqshy), à partir de résultats de tournois agrégés (Best Coast Pairings, Woehammer Battlescroll, ChampionshipHub, Milarki, Tabletop Herald, Longshanks, Goonhammer...). Pour chacune des factions suivantes, donne un score de niveau de puissance actuel dans la méta, de -3 (très faible, win rate nettement sous 50%) à +3 (très fort, win rate nettement au-dessus de 50% / domine la méta), basé sur les win rates ou classements Elo de tournoi les plus récents que tu trouves. Factions (utilise exactement ces noms comme clés) : ${factionList}. Réponds UNIQUEMENT avec un objet JSON valide de la forme {"NomDeFaction": score, ...} pour CHAQUE faction listée, sans aucun texte avant ou après, sans balises markdown, sans commentaire, et sans jamais préfixer un nombre positif par le signe + (écris 1 et non +1).`;
+    const response = await fetch(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + encodeURIComponent(apiKey),
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          tools: [{ google_search: {} }]
+        })
+      }
+    );
+    if(!response.ok){
+      const detail = await response.text().catch(()=> '');
+      throw new Error('HTTP '+response.status+(detail ? ' — '+detail.slice(0,200) : ''));
+    }
+    const data = await response.json();
+    const parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
+    const text = parts.map(p=>p.text||'').join('\n');
+    return extractJsonObject(text);
+  }catch(err){
+    statusEl.textContent = "Échec du rafraîchissement — vérifie ta clé API et ta connexion. Détail technique : " + err.message;
+    return null;
+  }finally{
+    btn.disabled = false;
+    btn.textContent = prevLabel;
+  }
+}
+
+// Applique un jeu de scores de puissance par faction à TOUT ce qui en dépend : le tableau
+// de puissance par faction (onglet Configuration, utilisé pour générer le roster) ET le
+// tableau de suggestion de matchups (onglet Matchups) — les deux sont dérivés de la même
+// donnée, donc rafraîchir depuis l'un des deux onglets met aussi l'autre à jour.
+function applyFactionPowerLevels(powerLevels, label){
+  state.factionPower = Object.assign({}, FACTION_POWER, powerLevels);
+  state.factionMeta = buildDefaultFactionMeta(state.factionPower);
+  state.factionMetaUpdatedLabel = label;
+  renderFactionPowerTable();
+  renderFactionMetaMatrix();
+}
+
+async function refreshFactionMetaViaAI(){
+  const statusEl = document.getElementById('factionMetaStatus');
+  const btn = document.getElementById('refreshFactionMetaBtn');
+  if(!statusEl || !btn) return;
+  const powerLevels = await fetchFactionPowerLevelsFromGemini(statusEl, btn);
+  if(!powerLevels) return;
+  const ok = confirm('Le tableau meta faction vs faction ET le niveau de puissance par faction (onglet Configuration) vont être recalculés à partir des données trouvées en ligne à l\'instant. Les valeurs que tu as ajustées à la main seront écrasées. Continuer ?');
+  if(!ok){ statusEl.textContent = 'Rafraîchissement annulé.'; return; }
+  const label = 'Rafraîchi via Gemini le ' + new Date().toLocaleString('fr-FR');
+  applyFactionPowerLevels(powerLevels, label);
+  statusEl.textContent = label + ' (recherche web).';
+}
+
+async function refreshFactionPowerViaAI(){
+  const statusEl = document.getElementById('factionPowerStatus');
+  const btn = document.getElementById('refreshFactionPowerBtn');
+  if(!statusEl || !btn) return;
+  const powerLevels = await fetchFactionPowerLevelsFromGemini(statusEl, btn);
+  if(!powerLevels) return;
+  const ok = confirm('Le niveau de puissance par faction ET le tableau meta faction vs faction (onglet Matchups) vont être recalculés à partir des données trouvées en ligne à l\'instant. Les valeurs que tu as ajustées à la main seront écrasées. Continuer ?');
+  if(!ok){ statusEl.textContent = 'Rafraîchissement annulé.'; return; }
+  const label = 'Rafraîchi via Gemini le ' + new Date().toLocaleString('fr-FR');
+  applyFactionPowerLevels(powerLevels, label);
+  statusEl.textContent = label + ' (recherche web).';
+}
+
+function renderMatchupMatrix(){
+  renderOppTeamTabsInto('oppTeamTabsMatchups');
+  const ot = activeOppTeam();
+  renderMatrix('matchupMatrix', myLabelsWithFaction(), oppLabelsWithFaction(ot.roster), ot.matchup, -3, 3, renderLive);
+}
+function renderMyFitMatrix(){
+  renderMatrix('myFitMatrix', myLabels(), tableLabels(), state.myFit, -2, 2, renderLive);
+}
+function renderOppFitMatrix(){
+  renderOppTeamTabsInto('oppTeamTabsMissions');
+  const ot = activeOppTeam();
+  renderMatrix('oppFitMatrix', oppLabels(ot.roster), tableLabels(), ot.oppFit, -2, 2, renderLive);
+}
+function renderTacticMatrix(){
+  renderMatrix('tacticMatrix', BATTLE_TACTICS, BATTLEPLANS, state.tacticMatrix, -2, 2, renderLive);
+}
+
+/* ---------- Live pairing ---------- */
+function usedMy(){ return new Set(state.pairing.map(p=>p.myList).filter(x=>x!==null)); }
+function usedOpp(){ return new Set(state.pairing.map(p=>p.oppList).filter(x=>x!==null)); }
+
+function computeRecommendation(){
+  const myUsed = usedMy(), oppUsed = usedOpp();
+  const remainingMy = [...Array(TEAM_SIZE).keys()].filter(i=>!myUsed.has(i));
+  const remainingOpp = [...Array(TEAM_SIZE).keys()].filter(j=>!oppUsed.has(j));
+  const openTableIdx = state.pairing.map((p,t)=>p.myList===null?t:null).filter(t=>t!==null);
+
+  // Un matchup déjà révélé (adversaire connu sur cette table) est une valeur CERTAINE.
+  // Une table encore inconnue n'est qu'une estimation (moyenne/pire cas parmi les listes
+  // adverses restantes). On ne veut pas que la spéculation sur des tables inconnues vienne
+  // "voler" le meilleur joueur disponible pour un matchup déjà révélé : on résout donc
+  // d'abord l'affectation sur les tables connues, puis on répartit les joueurs restants
+  // sur les tables encore incertaines.
+  const knownTableIdx = openTableIdx.filter(t => state.pairing[t].oppList !== null);
+  const unknownTableIdx = openTableIdx.filter(t => state.pairing[t].oppList === null);
+
+  const recByTable = {};
+  let total = 0;
+
+  // Phase 1 : tables à adversaire connu — score exact, priorité absolue.
+  const knownValueFn = (i, t) => calcScore(i, state.pairing[t].oppList, t);
+  const knownResult = optimalAssignment(remainingMy, knownTableIdx, knownValueFn);
+  const assignedInPhase1 = new Set();
+  knownResult.assign.forEach(a=>{
+    recByTable[a.tableIdx] = {myIdx:a.myIdx, value:a.value};
+    assignedInPhase1.add(a.myIdx);
+    total += a.value;
+  });
+
+  // Phase 2 : tables à adversaire encore inconnu — estimation moyenne/pire cas
+  // parmi les joueurs restants une fois les matchups connus déjà attribués.
+  const remainingMyAfterPhase1 = remainingMy.filter(i => !assignedInPhase1.has(i));
+  const unknownValueFn = (i, t) => {
+    if(remainingOpp.length===0) return 0;
+    if(state.mode==='conservative'){
+      return Math.min(...remainingOpp.map(j=>calcScore(i,j,t)));
+    }
+    const sum = remainingOpp.reduce((s,j)=>s+calcScore(i,j,t),0);
+    return sum/remainingOpp.length;
+  };
+  const unknownResult = optimalAssignment(remainingMyAfterPhase1, unknownTableIdx, unknownValueFn);
+  unknownResult.assign.forEach(a=>{
+    recByTable[a.tableIdx] = {myIdx:a.myIdx, value:a.value};
+    total += a.value;
+  });
+
+  return {recByTable, total, remainingMy, remainingOpp};
+}
+
+function lockedTotal(){
+  let total=0;
+  state.pairing.forEach((p,t)=>{
+    if(p.myList!==null && p.oppList!==null) total += calcScore(p.myList, p.oppList, t);
+  });
+  return total;
+}
+
+function renderBattleLine(){
+  const el = document.getElementById('battleLine');
+  el.innerHTML='';
+  state.pairing.forEach(p=>{
+    const seg=document.createElement('div');
+    seg.className='seg' + (p.myList!==null && p.oppList!==null ? ' locked' : (p.myList!==null||p.oppList!==null ? ' partial':''));
+    el.appendChild(seg);
+  });
+}
+
+function tacticTagsHtml(entry){
+  let html='';
+  if(entry.tactic1) html += `<span class="fd-tag">${entry.tactic1}</span>`;
+  if(entry.tactic2) html += `<span class="fd-tag">${entry.tactic2}</span>`;
+  return html;
+}
+
+function renderLive(){
+  renderBattleLine();
+  const rec = computeRecommendation();
+  const grid = document.getElementById('tablesGrid');
+  grid.innerHTML='';
+
+  const myUsedArr = usedMy(), oppUsedArr = usedOpp();
+
+  state.tables.forEach((t,tIdx)=>{
+    const p = state.pairing[tIdx];
+    const card = document.createElement('div');
+    card.className = 'table-card' + (p.myList!==null && p.oppList!==null ? ' locked' : (p.myList!==null||p.oppList!==null?' partial':''));
+
+    const tableName = t.name && t.name.trim() ? t.name : 'Table '+(tIdx+1);
+    const battleplanName = t.battleplan && t.battleplan.trim() ? t.battleplan : 'Battleplan à définir';
+    let html = `<div class="tname">${tableName}</div><div class="tmission">${battleplanName}</div>`;
+
+    // MY slot
+    if(p.myList!==null){
+      const myEntry = state.myTeam[p.myList];
+      html += `<div class="slot"><span class="side">Moi</span><span class="val">${displayName(myEntry,'Joueur '+(p.myList+1))}${tacticTagsHtml(myEntry)}</span>
+        <button class="x" data-action="clearMy" data-t="${tIdx}">✕</button></div>`;
+    } else {
+      const options = [...Array(TEAM_SIZE).keys()].filter(i=>!myUsedArr.has(i));
+      const recommended = rec.recByTable[tIdx];
+      html += `<div class="slot empty"><span class="side">Moi</span><span class="val">— à placer —</span></div>`;
+      html += `<div class="rec-box">
+        <div class="rec-label">Recommandé : ${recommended? displayName(state.myTeam[recommended.myIdx],'Joueur '+(recommended.myIdx+1)) + ' · score ' + recommended.value.toFixed(1) : '—'}</div>
+        <select data-t="${tIdx}" class="mySelect">
+          ${options.map(i=>`<option value="${i}" ${recommended && recommended.myIdx===i?'selected':''}>${displayName(state.myTeam[i],'Joueur '+(i+1))}</option>`).join('')}
+        </select>
+        <button class="btn" data-action="setMy" data-t="${tIdx}">Confirmer mon placement</button>
+      </div>`;
+    }
+
+    // OPP slot
+    if(p.oppList!==null){
+      const oppEntry = liveOppTeam().roster[p.oppList];
+      html += `<div class="slot"><span class="side">Adv.</span><span class="val">${displayName(oppEntry,'Adv. '+(p.oppList+1))}${tacticTagsHtml(oppEntry)}</span>
+        <button class="x" data-action="clearOpp" data-t="${tIdx}">✕</button></div>`;
+    } else {
+      const optionsO = [...Array(TEAM_SIZE).keys()].filter(j=>!oppUsedArr.has(j));
+      html += `<div class="slot empty"><span class="side">Adv.</span><span class="val">— inconnu —</span></div>`;
+      html += `<div class="rec-box" style="border-color:var(--line);">
+        <select data-t="${tIdx}" class="oppSelect">
+          ${optionsO.map(j=>`<option value="${j}">${displayName(liveOppTeam().roster[j],'Adv. '+(j+1))}</option>`).join('')}
+        </select>
+        <button class="btn secondary" data-action="setOpp" data-t="${tIdx}">Enregistrer révélation adverse</button>
+      </div>`;
+    }
+
+    if(p.myList!==null && p.oppList!==null){
+      const sc = calcScore(p.myList, p.oppList, tIdx);
+      html += `<div class="score-pill" style="color:${sc>=0?'var(--green-bright)':'var(--red-bright)'}">Score : ${sc>=0?'+':''}${sc.toFixed(1)}</div>`;
+    }
+
+    card.innerHTML = html;
+    grid.appendChild(card);
+  });
+
+  grid.querySelectorAll('[data-action="setMy"]').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      const tIdx = +e.target.dataset.t;
+      const sel = grid.querySelector(`.mySelect[data-t="${tIdx}"]`);
+      state.pairing[tIdx].myList = +sel.value;
+      renderLive(); updateTotals(); renderResults();
+    });
+  });
+  grid.querySelectorAll('[data-action="setOpp"]').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      const tIdx = +e.target.dataset.t;
+      const sel = grid.querySelector(`.oppSelect[data-t="${tIdx}"]`);
+      state.pairing[tIdx].oppList = +sel.value;
+      renderLive(); updateTotals(); renderResults();
+    });
+  });
+  grid.querySelectorAll('[data-action="clearMy"]').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      state.pairing[+e.target.dataset.t].myList = null;
+      renderLive(); updateTotals(); renderResults();
+    });
+  });
+  grid.querySelectorAll('[data-action="clearOpp"]').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      state.pairing[+e.target.dataset.t].oppList = null;
+      renderLive(); updateTotals(); renderResults();
+    });
+  });
+
+  updateTotals(rec);
+}
+
+function updateTotals(recParam){
+  const rec = recParam || computeRecommendation();
+  const locked = lockedTotal();
+  const openCount = state.pairing.filter(p=>p.myList===null).length;
+  document.getElementById('totLocked').textContent = (locked>=0?'+':'')+locked.toFixed(1);
+  document.getElementById('totRec').textContent = (rec.total>=0?'+':'')+rec.total.toFixed(1);
+  document.getElementById('totGrand').textContent = (locked+rec.total>=0?'+':'')+(locked+rec.total).toFixed(1);
+  document.getElementById('totOpen').textContent = openCount;
+}
+
+// Onglet « 5. Résultats Réels Pairing » : saisie du score réel de chaque table une fois
+// la partie jouée, à partir des tables déjà verrouillées (joueur + adversaire confirmés)
+// dans l'onglet « 4. Pairing en direct ». Les totaux s'incrémentent au fur et à mesure.
+function renderResults(){
+  const grid = document.getElementById('resultsGrid');
+  if(!grid) return;
+  grid.innerHTML = '';
+
+  const lockedTables = state.pairing
+    .map((p,t)=>({p,t}))
+    .filter(({p})=>p.myList!==null && p.oppList!==null);
+
+  if(lockedTables.length===0){
+    grid.innerHTML = '<div class="hint">Aucune table verrouillée pour l\'instant (joueur + adversaire confirmés) dans l\'onglet « 4. Pairing en direct ». Complète au moins une table là-bas pour pouvoir saisir un score ici.</div>';
+  }
+
+  lockedTables.forEach(({p,t})=>{
+    const tbl = state.tables[t];
+    const myEntry = state.myTeam[p.myList];
+    const oppEntry = liveOppTeam().roster[p.oppList];
+    const tableName = tbl.name && tbl.name.trim() ? tbl.name : 'Table '+(t+1);
+    const battleplanName = tbl.battleplan && tbl.battleplan.trim() ? tbl.battleplan : 'Battleplan à définir';
+    const card = document.createElement('div');
+    card.className = 'table-card';
+    card.innerHTML = `
+      <div class="tname">${tableName}</div>
+      <div class="tmission">${battleplanName}</div>
+      <div class="slot"><span class="side">Moi</span><span class="val">${displayName(myEntry,'Joueur '+(p.myList+1))}${myEntry.faction ? ' · '+myEntry.faction : ''}</span></div>
+      <div class="slot"><span class="side">Adv.</span><span class="val">${displayName(oppEntry,'Adv. '+(p.oppList+1))}${oppEntry.faction ? ' · '+oppEntry.faction : ''}</span></div>
+      <div class="score-inputs">
+        <label>Score moi
+          <input type="number" min="0" step="1" class="resMyScore" data-t="${t}" value="${p.myScore!==null && p.myScore!==undefined ? p.myScore : ''}" placeholder="—">
+        </label>
+        <label>Score adv.
+          <input type="number" min="0" step="1" class="resOppScore" data-t="${t}" value="${p.oppScore!==null && p.oppScore!==undefined ? p.oppScore : ''}" placeholder="—">
+        </label>
+      </div>`;
+    grid.appendChild(card);
+  });
+
+  grid.querySelectorAll('.resMyScore').forEach(inp=>{
+    inp.addEventListener('input', e=>{
+      const t = +e.target.dataset.t;
+      const v = e.target.value;
+      state.pairing[t].myScore = v==='' ? null : Math.max(0, parseInt(v,10)||0);
+      updateResultsTotals();
+    });
+  });
+  grid.querySelectorAll('.resOppScore').forEach(inp=>{
+    inp.addEventListener('input', e=>{
+      const t = +e.target.dataset.t;
+      const v = e.target.value;
+      state.pairing[t].oppScore = v==='' ? null : Math.max(0, parseInt(v,10)||0);
+      updateResultsTotals();
+    });
+  });
+
+  updateResultsTotals();
+}
+
+// Ne recalcule que les totaux (sans re-rendre la grille) : appelée à chaque frappe dans un
+// champ de score pour ne jamais faire perdre le focus/curseur de l'input en cours de saisie.
+function updateResultsTotals(){
+  const myTotalEl = document.getElementById('resMyTotal');
+  const oppTotalEl = document.getElementById('resOppTotal');
+  const filledEl = document.getElementById('resFilled');
+  if(!myTotalEl || !oppTotalEl || !filledEl) return;
+  let myTotal = 0, oppTotal = 0, filled = 0;
+  state.pairing.forEach(p=>{
+    if(p.myScore!==null && p.myScore!==undefined) myTotal += p.myScore;
+    if(p.oppScore!==null && p.oppScore!==undefined) oppTotal += p.oppScore;
+    if(p.myScore!==null && p.myScore!==undefined && p.oppScore!==null && p.oppScore!==undefined) filled++;
+  });
+  myTotalEl.textContent = myTotal;
+  oppTotalEl.textContent = oppTotal;
+  filledEl.textContent = filled + '/' + TEAM_SIZE;
+}
+
+/* ---------- Tabs ---------- */
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-'+btn.dataset.tab).classList.add('active');
+    if(btn.dataset.tab==='live') renderLive();
+    if(btn.dataset.tab==='results') renderResults();
+  });
+});
+
+document.getElementById('teamSizeSelect').addEventListener('change', e=>{
+  setTeamSize(parseInt(e.target.value,10));
+});
+
+document.getElementById('applyFactionMetaActiveBtn').addEventListener('click', ()=>{
+  const overwrite = document.getElementById('factionMetaOverwrite').checked;
+  const count = applyFactionMetaToTeam(activeOppTeam(), overwrite);
+  renderMatchupMatrix(); renderLive();
+  alert(count>0 ? `${count} case(s) de matchup mise(s) à jour à partir de la meta faction.` : `Aucune correspondance trouvée : vérifie que les factions sont renseignées et que le tableau meta ci-dessus contient des valeurs.`);
+});
+document.getElementById('applyFactionMetaAllBtn').addEventListener('click', ()=>{
+  const overwrite = document.getElementById('factionMetaOverwrite').checked;
+  let total=0;
+  state.oppTeams.forEach(ot=>{ total += applyFactionMetaToTeam(ot, overwrite); });
+  renderMatchupMatrix(); renderLive();
+  alert(total>0 ? `${total} case(s) de matchup mise(s) à jour sur l'ensemble des équipes adverses.` : `Aucune correspondance trouvée : vérifie que les factions sont renseignées et que le tableau meta ci-dessus contient des valeurs.`);
+});
+document.getElementById('refreshFactionMetaBtn').addEventListener('click', refreshFactionMetaViaAI);
+document.getElementById('refreshFactionPowerBtn').addEventListener('click', refreshFactionPowerViaAI);
+initGeminiSettingsPanel({
+  panel:'geminiSettingsPanel', toggleBtn:'toggleGeminiSettingsBtn',
+  keyInput:'geminiApiKeyInput', saveBtn:'saveGeminiSettingsBtn', savedIndicator:'geminiSettingsSavedIndicator'
+});
+initGeminiSettingsPanel({
+  panel:'geminiSettingsPanel2', toggleBtn:'toggleGeminiSettingsBtn2',
+  keyInput:'geminiApiKeyInput2', saveBtn:'saveGeminiSettingsBtn2', savedIndicator:'geminiSettingsSavedIndicator2'
+});
+
+document.getElementById('maxTacticDuplicatesInput').addEventListener('change', e=>{
+  const v = parseInt(e.target.value, 10);
+  const clamped = Math.min(Math.max(isNaN(v) ? 1 : v, 1), BATTLE_TACTICS.length);
+  state.maxTacticDuplicates = clamped;
+  e.target.value = clamped;
+});
+document.getElementById('randomizeMyTeamBtn').addEventListener('click', ()=>{
+  if(hasMyTeamData()){
+    const ok = confirm('Régénérer aléatoirement mon équipe va remplacer le roster actuel (noms, factions, Battle Tactics cards). Continuer ?');
+    if(!ok) return;
+  }
+  randomizeMyTeam();
+  renderAll();
+});
+document.getElementById('randomizeOppTeamBtn').addEventListener('click', ()=>{
+  randomizeOppTeam(state.activeOppIdx);
+  renderAll();
+});
+document.getElementById('randomizeAllOppTeamsBtn').addEventListener('click', ()=>{
+  const ok = confirm('Régénérer aléatoirement les '+state.oppTeams.length+' équipe(s) adverse(s) configurée(s) ? Les rosters, matchups et affinités actuels seront remplacés.');
+  if(!ok) return;
+  randomizeAllOppTeams();
+});
+document.getElementById('randomizeTableNamesBtn').addEventListener('click', ()=>{
+  randomizeTableNames();
+});
+
+document.getElementById('modeSelect').addEventListener('change', e=>{
+  state.mode = e.target.value;
+  renderLive();
+});
+
+document.getElementById('liveOppSelect').addEventListener('change', e=>{
+  const newIdx = parseInt(e.target.value,10);
+  if(newIdx === state.liveOppIdx) return;
+  const hasProgress = state.pairing.some(p=>p.myList!==null || p.oppList!==null);
+  if(hasProgress){
+    const ok = confirm('Changer d\'adversaire pour ce round va réinitialiser le pairing en cours. Continuer ?');
+    if(!ok){
+      renderLiveOppSelect();
+      return;
+    }
+  }
+  state.liveOppIdx = newIdx;
+  state.pairing = Array.from({length:TEAM_SIZE}, ()=>({myList:null, oppList:null, myScore:null, oppScore:null}));
+  renderLive();
+  renderResults();
+});
+
+document.getElementById('resetPairing').addEventListener('click', ()=>{
+  state.pairing = Array.from({length:TEAM_SIZE}, ()=>({myList:null, oppList:null, myScore:null, oppScore:null}));
+  renderLive();
+  renderResults();
+});
+
+document.getElementById('resetResults').addEventListener('click', ()=>{
+  const ok = confirm('Effacer tous les scores réels saisis pour ce round (le pairing lui-même — joueurs et adversaires — n\'est pas touché) ?');
+  if(!ok) return;
+  state.pairing.forEach(p=>{ p.myScore = null; p.oppScore = null; });
+  renderResults();
+});
+
+/* ---------- Export / Import ---------- */
+document.getElementById('exportBtn').addEventListener('click', ()=>{
+  const blob = new Blob([JSON.stringify(state,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url; a.download='pairing-config-aos.json'; a.click();
+  URL.revokeObjectURL(url);
+});
+document.getElementById('importBtn').addEventListener('click', ()=>{
+  document.getElementById('importFile').click();
+});
+document.getElementById('importFile').addEventListener('change', e=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = evt=>{
+    try{
+      const loaded = JSON.parse(evt.target.result);
+      applyLoadedState(loaded);
+      renderAll();
+    }catch(err){
+      alert('Fichier invalide.');
+    }
+  };
+  reader.readAsText(file);
+});
+
+// Valide et applique un état chargé (import JSON manuel OU sauvegarde locale automatique)
+// en comblant tout champ manquant/corrompu par une valeur par défaut sûre, pour ne
+// jamais planter l'appli sur un fichier ou un stockage partiel/ancien.
+function applyLoadedState(loaded){
+  state = loaded;
+  TEAM_SIZE = (state.myTeam && state.myTeam.length) || 6;
+  if(!state.oppTeams || !state.oppTeams.length) state.oppTeams = [makeOppTeam(1)];
+  if(!state.factionMeta || Object.keys(state.factionMeta).length===0) state.factionMeta = buildDefaultFactionMeta();
+  if(!state.factionMetaUpdatedLabel) state.factionMetaUpdatedLabel = 'Estimation de départ (' + FACTION_POWER_SNAPSHOT_DATE + ')';
+  if(!state.factionPower || Object.keys(state.factionPower).length===0) state.factionPower = Object.assign({}, FACTION_POWER);
+  if(!state.tacticMatrix || !state.tacticMatrix.length) state.tacticMatrix = buildDefaultTacticMatrix();
+  if(!state.pairing || !state.pairing.length) state.pairing = Array.from({length:TEAM_SIZE}, ()=>({myList:null, oppList:null, myScore:null, oppScore:null}));
+  state.pairing.forEach(p=>{
+    if(p.myScore===undefined) p.myScore = null;
+    if(p.oppScore===undefined) p.oppScore = null;
+  });
+  state.oppTeams = state.oppTeams.slice(0, MAX_OPP_TEAMS);
+  if(typeof state.activeOppIdx !== 'number' || state.activeOppIdx>=state.oppTeams.length) state.activeOppIdx = 0;
+  if(typeof state.liveOppIdx !== 'number' || state.liveOppIdx>=state.oppTeams.length) state.liveOppIdx = 0;
+  document.getElementById('teamSizeSelect').value = String(TEAM_SIZE);
+  document.getElementById('formatSub').textContent = `Team Event · Format ${TEAM_SIZE}v${TEAM_SIZE} · General's Handbook 2026-27 (Aqshy)`;
+}
+
+/* ---------- Persistance locale automatique ---------- */
+// Sauvegarde silencieuse de tout l'état (roster, matrices, méta rafraîchie via Gemini,
+// pairing en cours...) dans le stockage local de l'appareil. Ne contient aucune donnée
+// envoyée à un serveur : tout reste sur l'appareil, comme pour l'export JSON manuel.
+const STORAGE_KEY = 'aos-pairing-tool-state-v1';
+let saveTimer = null;
+function saveStateToStorage(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(()=>{
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      const ind = document.getElementById('autoSaveIndicator');
+      if(ind){
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2,'0');
+        const mm = String(now.getMinutes()).padStart(2,'0');
+        ind.textContent = `✓ Sauvegardé automatiquement (${hh}:${mm})`;
+      }
+    }catch(e){
+      const ind = document.getElementById('autoSaveIndicator');
+      if(ind) ind.textContent = '⚠ Sauvegarde locale indisponible';
+    }
+  }, 350);
+}
+function loadStateFromStorage(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return false;
+    const loaded = JSON.parse(raw);
+    applyLoadedState(loaded);
+    return true;
+  }catch(e){
+    return false;
+  }
+}
+document.getElementById('clearStorageBtn').addEventListener('click', ()=>{
+  const ok = confirm('Effacer toutes les données sauvegardées sur cet appareil (rosters, matrices, pairing en cours) ? Cette action est irréversible. Pense à exporter une configuration si tu veux la garder.');
+  if(!ok) return;
+  try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
+  state = {
+    myTeam: Array.from({length:TEAM_SIZE}, ()=>({name:'', faction:'', tactic1:'', tactic2:''})),
+    oppTeams: [ makeOppTeam(1) ],
+    activeOppIdx: 0,
+    liveOppIdx: 0,
+    tables: Array.from({length:TEAM_SIZE}, ()=>({name:'', battleplan:''})),
+    myFit: Array.from({length:TEAM_SIZE}, ()=>Array(TEAM_SIZE).fill(0)),
+    tacticMatrix: buildDefaultTacticMatrix(),
+    factionMeta: buildDefaultFactionMeta(),
+    factionMetaUpdatedLabel: 'Estimation de départ (' + FACTION_POWER_SNAPSHOT_DATE + ')',
+    factionPower: Object.assign({}, FACTION_POWER),
+    pairing: Array.from({length:TEAM_SIZE}, ()=>({myList:null, oppList:null, myScore:null, oppScore:null})),
+    mode: 'expected',
+    maxTacticDuplicates: minFeasibleTacticDuplicates(TEAM_SIZE)
+  };
+  document.getElementById('autoSaveIndicator').textContent = '';
+  renderAll();
+});
+
+/* ---------- Full render ---------- */
+function renderAllInner(){
+  renderRoster('myRoster', state.myTeam);
+  renderOppTeamTabsInto('oppTeamTabsSetup');
+  renderOppTeamPanel();
+  renderTableRoster();
+  renderFactionPowerTable();
+  renderFactionMetaMatrix();
+  renderMatchupMatrix();
+  renderMyFitMatrix();
+  renderOppFitMatrix();
+  renderTacticMatrix();
+  renderLiveOppSelect();
+  document.getElementById('modeSelect').value = state.mode;
+  document.getElementById('maxTacticDuplicatesInput').value = state.maxTacticDuplicates;
+  document.getElementById('maxTacticDuplicatesInput').max = String(BATTLE_TACTICS.length);
+  renderLive();
+  renderResults();
+}
+
+// renderAllInner recrée tout le DOM (innerHTML=''), ce qui fait perdre le focus/curseur
+// d'un champ en cours de saisie. Ce wrapper mémorise le champ actif avant le rendu et
+// restaure le focus + la position du curseur sur son équivalent après coup.
+function renderAll(){
+  const active = document.activeElement;
+  let info = null;
+  if(active && (active.tagName==='INPUT' || active.tagName==='SELECT') && active.dataset && active.dataset.idx!==undefined){
+    const container = active.closest('div[id]');
+    info = {
+      containerId: container ? container.id : null,
+      idx: active.dataset.idx,
+      field: active.dataset.field,
+      start: (typeof active.selectionStart==='number') ? active.selectionStart : null,
+      end: (typeof active.selectionEnd==='number') ? active.selectionEnd : null
+    };
+  }
+
+  renderAllInner();
+
+  if(info && info.containerId){
+    const container = document.getElementById(info.containerId);
+    if(container){
+      const selector = `[data-idx="${info.idx}"]` + (info.field ? `[data-field="${info.field}"]` : '');
+      const restored = container.querySelector(selector);
+      if(restored){
+        restored.focus();
+        if(info.start!==null && restored.setSelectionRange){
+          try{ restored.setSelectionRange(info.start, info.end); }catch(e){}
+        }
+      }
+    }
+  }
+
+  saveStateToStorage();
+}
+
+// Au démarrage : on tente de restaurer la dernière session sauvegardée sur cet appareil
+// avant le tout premier rendu. Si rien n'est trouvé (première utilisation) ou si la
+// sauvegarde est corrompue, on repart simplement sur l'état par défaut déjà initialisé.
+loadStateFromStorage();
+renderAll();
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
