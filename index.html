@@ -1527,6 +1527,22 @@ function renderTacticMatrix(){
 function usedMy(){ return new Set(state.pairing.map(p=>p.myList).filter(x=>x!==null)); }
 function usedOpp(){ return new Set(state.pairing.map(p=>p.oppList).filter(x=>x!==null)); }
 
+// Quand l'adversaire n'est pas encore révélé sur une table, mais qu'il a déjà annoncé
+// les 2 attaquants parmi lesquels il choisira (oppCandidates), l'estimation ne doit plus
+// porter sur TOUTE la réserve de listes adverses restantes : elle doit se restreindre à
+// ces 2 candidats précis, qui sont l'info la plus à jour qu'on ait sur cette table. Ça
+// permet aux recommandations (choix de mon défenseur, calcul global) de réagir tout de
+// suite dès qu'on saisit les 2 propositions adverses, au lieu de continuer à moyenner
+// sur des adversaires qui ne peuvent de toute façon plus tomber sur cette table.
+function oppPoolForTable(tIdx, remainingOpp){
+  const cand = state.pairing[tIdx] && state.pairing[tIdx].oppCandidates;
+  if(cand && cand[0]!==null && cand[0]!==undefined && cand[1]!==null && cand[1]!==undefined){
+    const narrowed = [cand[0], cand[1]].filter(j=>remainingOpp.includes(j));
+    if(narrowed.length>0) return narrowed;
+  }
+  return remainingOpp;
+}
+
 function computeRecommendation(){
   const myUsed = usedMy(), oppUsed = usedOpp();
   const remainingMy = [...Array(TEAM_SIZE).keys()].filter(i=>!myUsed.has(i));
@@ -1535,10 +1551,11 @@ function computeRecommendation(){
 
   // Un matchup déjà révélé (adversaire connu sur cette table) est une valeur CERTAINE.
   // Une table encore inconnue n'est qu'une estimation (moyenne/pire cas parmi les listes
-  // adverses restantes). On ne veut pas que la spéculation sur des tables inconnues vienne
-  // "voler" le meilleur joueur disponible pour un matchup déjà révélé : on résout donc
-  // d'abord l'affectation sur les tables connues, puis on répartit les joueurs restants
-  // sur les tables encore incertaines.
+  // adverses restantes, ou parmi les 2 attaquants proposés par l'adversaire si on les
+  // connaît déjà — voir oppPoolForTable). On ne veut pas que la spéculation sur des
+  // tables inconnues vienne "voler" le meilleur joueur disponible pour un matchup déjà
+  // révélé : on résout donc d'abord l'affectation sur les tables connues, puis on
+  // répartit les joueurs restants sur les tables encore incertaines.
   const knownTableIdx = openTableIdx.filter(t => state.pairing[t].oppList !== null);
   const unknownTableIdx = openTableIdx.filter(t => state.pairing[t].oppList === null);
 
@@ -1555,16 +1572,17 @@ function computeRecommendation(){
     total += a.value;
   });
 
-  // Phase 2 : tables à adversaire encore inconnu — estimation moyenne/pire cas
-  // parmi les joueurs restants une fois les matchups connus déjà attribués.
+  // Phase 2 : tables à adversaire encore inconnu — estimation moyenne/pire cas,
+  // restreinte aux 2 attaquants proposés dès qu'on les connaît pour cette table.
   const remainingMyAfterPhase1 = remainingMy.filter(i => !assignedInPhase1.has(i));
   const unknownValueFn = (i, t) => {
-    if(remainingOpp.length===0) return 0;
+    const pool = oppPoolForTable(t, remainingOpp);
+    if(pool.length===0) return 0;
     if(state.mode==='conservative'){
-      return Math.min(...remainingOpp.map(j=>calcScore(i,j,t)));
+      return Math.min(...pool.map(j=>calcScore(i,j,t)));
     }
-    const sum = remainingOpp.reduce((s,j)=>s+calcScore(i,j,t),0);
-    return sum/remainingOpp.length;
+    const sum = pool.reduce((s,j)=>s+calcScore(i,j,t),0);
+    return sum/pool.length;
   };
   const unknownResult = optimalAssignment(remainingMyAfterPhase1, unknownTableIdx, unknownValueFn);
   unknownResult.assign.forEach(a=>{
@@ -1577,19 +1595,21 @@ function computeRecommendation(){
 
 // Classe, pour UNE table donnée, tous les joueurs restants par score décroissant sur
 // cette table précise (matchup exact si l'adversaire est déjà révélé, sinon estimation
-// moyenne/pire cas comme dans computeRecommendation). Sert à proposer les 2 meilleurs
-// choix côte à côte dans l'onglet Pairing en direct, plutôt qu'une seule recommandation.
+// moyenne/pire cas restreinte aux 2 attaquants proposés si on les connaît déjà, comme
+// dans computeRecommendation). Sert à proposer les 2 meilleurs choix côte à côte dans
+// l'onglet Pairing en direct, plutôt qu'une seule recommandation.
 function rankCandidatesForTable(tIdx, remainingMy, remainingOpp){
   const known = state.pairing[tIdx].oppList !== null;
   const valueFn = known
     ? (i)=>calcScore(i, state.pairing[tIdx].oppList, tIdx)
     : (i)=>{
-        if(remainingOpp.length===0) return 0;
+        const pool = oppPoolForTable(tIdx, remainingOpp);
+        if(pool.length===0) return 0;
         if(state.mode==='conservative'){
-          return Math.min(...remainingOpp.map(j=>calcScore(i,j,tIdx)));
+          return Math.min(...pool.map(j=>calcScore(i,j,tIdx)));
         }
-        const sum = remainingOpp.reduce((s,j)=>s+calcScore(i,j,tIdx),0);
-        return sum/remainingOpp.length;
+        const sum = pool.reduce((s,j)=>s+calcScore(i,j,tIdx),0);
+        return sum/pool.length;
       };
   return remainingMy
     .map(i=>({myIdx:i, value:valueFn(i)}))
