@@ -2,18 +2,8 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Grand Alliance — Outil de Pairing AoS</title>
-
-<!-- Réglages "app" pour iOS (Ajouter à l'écran d'accueil) -->
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Grand Alliance">
-<meta name="theme-color" content="#0f1210">
-<link rel="apple-touch-icon" href="icon-180.png">
-<link rel="icon" href="icon.png">
-<link rel="manifest" href="manifest.json">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
 
@@ -199,6 +189,24 @@
   }
   .rec-box .rec-label{font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--brass); margin-bottom:4px;}
   .rec-box select{width:100%; margin-bottom:6px;}
+  .rec-choices{
+    display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:8px;
+  }
+  .rec-choice{
+    padding:8px; background:rgba(184,147,90,.08); border:1px dashed var(--brass);
+    display:flex; flex-direction:column; gap:4px;
+  }
+  .rec-choice.best{background:rgba(217,176,110,.14); border:1px solid var(--brass-bright);}
+  .rec-choice .rec-label{font-size:9.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--brass);}
+  .rec-choice .rec-name{font-size:12px; font-weight:600; color:var(--bone); min-height:16px;}
+  .rec-choice .btn{padding:5px 8px; font-size:10.5px;}
+  .rec-more{margin-top:8px;}
+  .rec-more summary{
+    cursor:pointer; font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase;
+    letter-spacing:.05em; color:var(--bone-dim); margin-bottom:6px;
+  }
+  .rec-more summary:hover{color:var(--brass-bright);}
+  .rec-more select{width:100%; margin:6px 0;}
   .btn{
     font-family:'Cinzel',serif; text-transform:uppercase; letter-spacing:.03em; font-size:11.5px;
     font-weight:600; background:var(--red); color:var(--bone); border:none; padding:6px 10px;
@@ -828,13 +836,14 @@ function randomizeMyTeam(){
   });
 }
 function randomizeTableNames(){
-  const namePool = shuffle(RANDOM_TABLE_NAMES);
-  // On mélange les 12 battleplans et on les distribue sans doublon (il y a au max
-  // 8 tables pour 12 battleplans possibles). Si jamais il y avait plus de tables que
-  // de battleplans, on reboucle sur un second mélange plutôt que de répéter le même ordre.
+  // Les noms de table restent simplement "Table 1", "Table 2", etc. dans l'ordre —
+  // seuls les battleplans sont tirés au sort. On mélange les 12 battleplans et on les
+  // distribue sans doublon (il y a au max 8 tables pour 12 battleplans possibles). Si
+  // jamais il y avait plus de tables que de battleplans, on reboucle sur un second
+  // mélange plutôt que de répéter le même ordre.
   const battleplanPool = shuffle(BATTLEPLANS);
   state.tables.forEach((t,i)=>{
-    t.name = namePool[i % namePool.length];
+    t.name = 'Table ' + (i+1);
     t.battleplan = battleplanPool[i % battleplanPool.length];
   });
   renderAll();
@@ -1429,6 +1438,27 @@ function computeRecommendation(){
   return {recByTable, total, remainingMy, remainingOpp};
 }
 
+// Classe, pour UNE table donnée, tous les joueurs restants par score décroissant sur
+// cette table précise (matchup exact si l'adversaire est déjà révélé, sinon estimation
+// moyenne/pire cas comme dans computeRecommendation). Sert à proposer les 2 meilleurs
+// choix côte à côte dans l'onglet Pairing en direct, plutôt qu'une seule recommandation.
+function rankCandidatesForTable(tIdx, remainingMy, remainingOpp){
+  const known = state.pairing[tIdx].oppList !== null;
+  const valueFn = known
+    ? (i)=>calcScore(i, state.pairing[tIdx].oppList, tIdx)
+    : (i)=>{
+        if(remainingOpp.length===0) return 0;
+        if(state.mode==='conservative'){
+          return Math.min(...remainingOpp.map(j=>calcScore(i,j,tIdx)));
+        }
+        const sum = remainingOpp.reduce((s,j)=>s+calcScore(i,j,tIdx),0);
+        return sum/remainingOpp.length;
+      };
+  return remainingMy
+    .map(i=>({myIdx:i, value:valueFn(i)}))
+    .sort((a,b)=>b.value-a.value);
+}
+
 function lockedTotal(){
   let total=0;
   state.pairing.forEach((p,t)=>{
@@ -1478,15 +1508,25 @@ function renderLive(){
         <button class="x" data-action="clearMy" data-t="${tIdx}">✕</button></div>`;
     } else {
       const options = [...Array(TEAM_SIZE).keys()].filter(i=>!myUsedArr.has(i));
-      const recommended = rec.recByTable[tIdx];
+      const remainingOppForTable = [...Array(TEAM_SIZE).keys()].filter(j=>!oppUsedArr.has(j));
+      const topCandidates = rankCandidatesForTable(tIdx, options, remainingOppForTable).slice(0,2);
       html += `<div class="slot empty"><span class="side">Moi</span><span class="val">— à placer —</span></div>`;
-      html += `<div class="rec-box">
-        <div class="rec-label">Recommandé : ${recommended? displayName(state.myTeam[recommended.myIdx],'Joueur '+(recommended.myIdx+1)) + ' · score ' + recommended.value.toFixed(1) : '—'}</div>
+      html += `<div class="rec-choices">`;
+      topCandidates.forEach((c,rank)=>{
+        const entry = state.myTeam[c.myIdx];
+        html += `<div class="rec-choice${rank===0?' best':''}">
+          <div class="rec-label">${rank===0?'① Meilleur choix':'② Second choix'} · score ${c.value.toFixed(1)}</div>
+          <div class="rec-name">${displayName(entry,'Joueur '+(c.myIdx+1))}${tacticTagsHtml(entry)}</div>
+          <button class="btn${rank===0?'':' secondary'}" data-action="setMyChoice" data-t="${tIdx}" data-my="${c.myIdx}">Valider ce choix</button>
+        </div>`;
+      });
+      html += `</div>`;
+      html += `<details class="rec-more"><summary>Choisir un autre joueur</summary>
         <select data-t="${tIdx}" class="mySelect">
-          ${options.map(i=>`<option value="${i}" ${recommended && recommended.myIdx===i?'selected':''}>${displayName(state.myTeam[i],'Joueur '+(i+1))}</option>`).join('')}
+          ${options.map(i=>`<option value="${i}">${displayName(state.myTeam[i],'Joueur '+(i+1))}</option>`).join('')}
         </select>
-        <button class="btn" data-action="setMy" data-t="${tIdx}">Confirmer mon placement</button>
-      </div>`;
+        <button class="btn secondary" data-action="setMy" data-t="${tIdx}">Confirmer mon placement</button>
+      </details>`;
     }
 
     // OPP slot
@@ -1519,6 +1559,14 @@ function renderLive(){
       const tIdx = +e.target.dataset.t;
       const sel = grid.querySelector(`.mySelect[data-t="${tIdx}"]`);
       state.pairing[tIdx].myList = +sel.value;
+      renderLive(); updateTotals(); renderResults();
+    });
+  });
+  grid.querySelectorAll('[data-action="setMyChoice"]').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      const tIdx = +e.currentTarget.dataset.t;
+      const myIdx = +e.currentTarget.dataset.my;
+      state.pairing[tIdx].myList = myIdx;
       renderLive(); updateTotals(); renderResults();
     });
   });
@@ -1905,12 +1953,6 @@ function renderAll(){
 // sauvegarde est corrompue, on repart simplement sur l'état par défaut déjà initialisé.
 loadStateFromStorage();
 renderAll();
-
-if('serviceWorker' in navigator){
-  window.addEventListener('load', ()=>{
-    navigator.serviceWorker.register('sw.js').catch(()=>{});
-  });
-}
 </script>
 </body>
 </html>
