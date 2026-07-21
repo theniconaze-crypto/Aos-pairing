@@ -189,6 +189,8 @@
   }
   .rec-box .rec-label{font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--brass); margin-bottom:4px;}
   .rec-box select{width:100%; margin-bottom:6px;}
+  .opp-cand-row{display:flex; gap:6px;}
+  .opp-cand-row select{flex:1; width:auto; margin-bottom:0;}
   .rec-choices{
     display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:8px;
   }
@@ -747,7 +749,7 @@ let state = {
   factionMeta: buildDefaultFactionMeta(),
   factionMetaUpdatedLabel: 'Estimation de départ (' + FACTION_POWER_SNAPSHOT_DATE + ')',
   factionPower: Object.assign({}, FACTION_POWER),
-  pairing: Array.from({length:TEAM_SIZE}, ()=>({myList:null, oppList:null, myScore:null, oppScore:null})),
+  pairing: Array.from({length:TEAM_SIZE}, ()=>({myList:null, oppList:null, myScore:null, oppScore:null, oppCandidates:[null,null]})),
   mode: 'expected',
   // Doublons max autorisés pour une même Battle Tactics card dans mon équipe lors de la
   // génération aléatoire (règle de tournoi par équipe façon WTC/ETC/AOSFF). Réglable dans
@@ -797,7 +799,7 @@ function setTeamSize(newSize){
     ot.matchup = resizeMatrixTo(ot.matchup, TEAM_SIZE);
     ot.oppFit = resizeMatrixTo(ot.oppFit, TEAM_SIZE);
   });
-  state.pairing = resizeArrayTo(state.pairing, TEAM_SIZE, ()=>({myList:null, oppList:null, myScore:null, oppScore:null}));
+  state.pairing = resizeArrayTo(state.pairing, TEAM_SIZE, ()=>({myList:null, oppList:null, myScore:null, oppScore:null, oppCandidates:[null,null]}));
   // Si le plafond de doublons actuel est devenu insuffisant pour ce nouveau format
   // d'équipe (ex: passage de 6 à 8 joueurs), on le relève au minimum jouable ; s'il était
   // déjà plus permissif que ce minimum, on ne touche pas au réglage de l'utilisateur.
@@ -828,7 +830,7 @@ function removeOppTeam(idx){
   if(state.activeOppIdx >= state.oppTeams.length) state.activeOppIdx = state.oppTeams.length-1;
   if(state.liveOppIdx >= state.oppTeams.length){
     state.liveOppIdx = state.oppTeams.length-1;
-    state.pairing = Array.from({length:TEAM_SIZE}, ()=>({myList:null, oppList:null, myScore:null, oppScore:null}));
+    state.pairing = Array.from({length:TEAM_SIZE}, ()=>({myList:null, oppList:null, myScore:null, oppScore:null, oppCandidates:[null,null]}));
   }
   renderAll();
 }
@@ -1671,13 +1673,53 @@ function renderLive(){
         <button class="x" data-action="clearOpp" data-t="${tIdx}">✕</button></div>`;
     } else {
       const optionsO = [...Array(TEAM_SIZE).keys()].filter(j=>!oppUsedArr.has(j));
+      if(!p.oppCandidates) p.oppCandidates = [null,null];
+      const [c0,c1] = p.oppCandidates;
       html += `<div class="slot empty"><span class="side">Adv.</span><span class="val">— inconnu —</span></div>`;
       html += `<div class="rec-box" style="border-color:var(--line);">
+        <div class="rec-label">2 attaquants proposés par l'adversaire</div>
+        <div class="opp-cand-row">
+          <select data-t="${tIdx}" data-slot="0" class="oppCandSelect">
+            <option value="">— attaquant 1 —</option>
+            ${optionsO.filter(j=>j!==c1).map(j=>`<option value="${j}" ${j===c0?'selected':''}>${displayName(liveOppTeam().roster[j],'Adv. '+(j+1))}</option>`).join('')}
+          </select>
+          <select data-t="${tIdx}" data-slot="1" class="oppCandSelect">
+            <option value="">— attaquant 2 —</option>
+            ${optionsO.filter(j=>j!==c0).map(j=>`<option value="${j}" ${j===c1?'selected':''}>${displayName(liveOppTeam().roster[j],'Adv. '+(j+1))}</option>`).join('')}
+          </select>
+        </div>
+      </div>`;
+
+      if(c0!==null && c1!==null){
+        if(p.myList===null){
+          html += `<div class="hint" style="margin:8px 0 0;">Place d'abord ton défenseur sur cette table pour voir la projection de score.</div>`;
+        } else {
+          const s0 = calcScore(p.myList, c0, tIdx);
+          const s1 = calcScore(p.myList, c1, tIdx);
+          const bestIsC0 = s0 >= s1;
+          const oppEntry0 = liveOppTeam().roster[c0];
+          const oppEntry1 = liveOppTeam().roster[c1];
+          html += `<div class="rec-choices">
+            <div class="rec-choice${bestIsC0?' best':''}">
+              <div class="rec-label">${bestIsC0?'① Meilleur choix pour toi':'② Second choix'} · score ${s0>=0?'+':''}${s0.toFixed(1)}</div>
+              <div class="rec-name">${displayName(oppEntry0,'Adv. '+(c0+1))}${tacticTagsHtml(oppEntry0)}</div>
+              <button class="btn${bestIsC0?'':' secondary'}" data-action="chooseOppAttacker" data-t="${tIdx}" data-opp="${c0}">Choisir cet adversaire</button>
+            </div>
+            <div class="rec-choice${!bestIsC0?' best':''}">
+              <div class="rec-label">${!bestIsC0?'① Meilleur choix pour toi':'② Second choix'} · score ${s1>=0?'+':''}${s1.toFixed(1)}</div>
+              <div class="rec-name">${displayName(oppEntry1,'Adv. '+(c1+1))}${tacticTagsHtml(oppEntry1)}</div>
+              <button class="btn${!bestIsC0?'':' secondary'}" data-action="chooseOppAttacker" data-t="${tIdx}" data-opp="${c1}">Choisir cet adversaire</button>
+            </div>
+          </div>`;
+        }
+      }
+
+      html += `<details class="rec-more"><summary>Révélation directe (sans les 2 propositions)</summary>
         <select data-t="${tIdx}" class="oppSelect">
           ${optionsO.map(j=>`<option value="${j}">${displayName(liveOppTeam().roster[j],'Adv. '+(j+1))}</option>`).join('')}
         </select>
-        <button class="btn secondary" data-action="setOpp" data-t="${tIdx}">Enregistrer révélation adverse</button>
-      </div>`;
+        <button class="btn secondary" data-action="setOpp" data-t="${tIdx}">Confirmer l'adversaire</button>
+      </details>`;
     }
 
     if(p.myList!==null && p.oppList!==null){
@@ -1710,6 +1752,26 @@ function renderLive(){
       const tIdx = +e.target.dataset.t;
       const sel = grid.querySelector(`.oppSelect[data-t="${tIdx}"]`);
       state.pairing[tIdx].oppList = +sel.value;
+      state.pairing[tIdx].oppCandidates = [null,null];
+      renderLive(); updateTotals(); renderResults();
+    });
+  });
+  grid.querySelectorAll('.oppCandSelect').forEach(sel=>{
+    sel.addEventListener('change', e=>{
+      const tIdx = +e.target.dataset.t;
+      const slot = +e.target.dataset.slot;
+      const val = e.target.value;
+      if(!state.pairing[tIdx].oppCandidates) state.pairing[tIdx].oppCandidates = [null,null];
+      state.pairing[tIdx].oppCandidates[slot] = val===''? null : +val;
+      renderLive(); updateTotals(); renderResults();
+    });
+  });
+  grid.querySelectorAll('[data-action="chooseOppAttacker"]').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      const tIdx = +e.currentTarget.dataset.t;
+      const oppIdx = +e.currentTarget.dataset.opp;
+      state.pairing[tIdx].oppList = oppIdx;
+      state.pairing[tIdx].oppCandidates = [null,null];
       renderLive(); updateTotals(); renderResults();
     });
   });
@@ -1721,7 +1783,9 @@ function renderLive(){
   });
   grid.querySelectorAll('[data-action="clearOpp"]').forEach(btn=>{
     btn.addEventListener('click', e=>{
-      state.pairing[+e.target.dataset.t].oppList = null;
+      const tIdx = +e.target.dataset.t;
+      state.pairing[tIdx].oppList = null;
+      state.pairing[tIdx].oppCandidates = [null,null];
       renderLive(); updateTotals(); renderResults();
     });
   });
@@ -1901,13 +1965,13 @@ document.getElementById('liveOppSelect').addEventListener('change', e=>{
     }
   }
   state.liveOppIdx = newIdx;
-  state.pairing = Array.from({length:TEAM_SIZE}, ()=>({myList:null, oppList:null, myScore:null, oppScore:null}));
+  state.pairing = Array.from({length:TEAM_SIZE}, ()=>({myList:null, oppList:null, myScore:null, oppScore:null, oppCandidates:[null,null]}));
   renderLive();
   renderResults();
 });
 
 document.getElementById('resetPairing').addEventListener('click', ()=>{
-  state.pairing = Array.from({length:TEAM_SIZE}, ()=>({myList:null, oppList:null, myScore:null, oppScore:null}));
+  state.pairing = Array.from({length:TEAM_SIZE}, ()=>({myList:null, oppList:null, myScore:null, oppScore:null, oppCandidates:[null,null]}));
   renderLive();
   renderResults();
 });
@@ -1957,7 +2021,7 @@ function applyLoadedState(loaded){
   if(!state.factionMetaUpdatedLabel) state.factionMetaUpdatedLabel = 'Estimation de départ (' + FACTION_POWER_SNAPSHOT_DATE + ')';
   if(!state.factionPower || Object.keys(state.factionPower).length===0) state.factionPower = Object.assign({}, FACTION_POWER);
   if(!state.tacticMatrix || !state.tacticMatrix.length) state.tacticMatrix = buildDefaultTacticMatrix();
-  if(!state.pairing || !state.pairing.length) state.pairing = Array.from({length:TEAM_SIZE}, ()=>({myList:null, oppList:null, myScore:null, oppScore:null}));
+  if(!state.pairing || !state.pairing.length) state.pairing = Array.from({length:TEAM_SIZE}, ()=>({myList:null, oppList:null, myScore:null, oppScore:null, oppCandidates:[null,null]}));
   state.pairing.forEach(p=>{
     if(p.myScore===undefined) p.myScore = null;
     if(p.oppScore===undefined) p.oppScore = null;
@@ -2020,7 +2084,7 @@ document.getElementById('clearStorageBtn').addEventListener('click', ()=>{
     factionMeta: buildDefaultFactionMeta(),
     factionMetaUpdatedLabel: 'Estimation de départ (' + FACTION_POWER_SNAPSHOT_DATE + ')',
     factionPower: Object.assign({}, FACTION_POWER),
-    pairing: Array.from({length:TEAM_SIZE}, ()=>({myList:null, oppList:null, myScore:null, oppScore:null})),
+    pairing: Array.from({length:TEAM_SIZE}, ()=>({myList:null, oppList:null, myScore:null, oppScore:null, oppCandidates:[null,null]})),
     mode: 'expected',
     maxTacticDuplicates: minFeasibleTacticDuplicates(TEAM_SIZE)
   };
