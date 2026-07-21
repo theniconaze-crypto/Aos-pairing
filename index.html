@@ -253,10 +253,122 @@
   .opp-team-panel-head .btn.danger:disabled{opacity:.3; cursor:not-allowed; background:transparent; color:var(--bone-dim); border-color:var(--line);}
   .live-opp-row{display:flex; align-items:center; gap:10px; margin-bottom:16px; flex-wrap:wrap;}
   .live-opp-row label{font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--bone-dim); text-transform:uppercase; letter-spacing:.05em;}
+
+  /* ---------- Auth / Login ---------- */
+  #loginOverlay{
+    position:fixed; inset:0; background:var(--bg); z-index:9999;
+    display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  #loginOverlay.hidden{display:none;}
+  .login-box{
+    width:100%; max-width:360px; background:var(--bg-panel); border:1px solid var(--line);
+    border-top:4px solid var(--ember, var(--red, #a3352f));
+  }
+  .login-box .inner{padding:26px 24px;}
+  .login-box h1{
+    font-family:'Cinzel',serif; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+    font-size:18px; color:var(--bone); margin:0 0 4px;
+  }
+  .login-box .sub{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--brass); text-transform:uppercase;
+    letter-spacing:.06em; margin-bottom:18px;
+  }
+  .login-box label{
+    display:block; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--bone-dim);
+    text-transform:uppercase; letter-spacing:.04em; margin:12px 0 4px;
+  }
+  .login-box input[type=text], .login-box input[type=password]{width:100%; box-sizing:border-box;}
+  .login-box .btn{width:100%; margin-top:18px;}
+  .login-box .err{color:var(--red-bright, #d9463d); font-size:12px; margin-top:10px; min-height:14px; font-family:'IBM Plex Mono',monospace;}
+  .login-box .foot-hint{font-size:10.5px; color:var(--bone-dim); margin-top:14px; line-height:1.5;}
+
+  #appRoot.hidden{display:none;}
+
+  .session-bar{
+    display:flex; align-items:center; justify-content:flex-end; gap:14px; margin-bottom:10px;
+    font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--bone-dim);
+  }
+  .session-bar .who{color:var(--brass-bright); text-transform:uppercase; letter-spacing:.03em;}
+  .session-bar button.link{
+    background:none; border:none; color:var(--brass); cursor:pointer; text-decoration:underline;
+    font-family:'IBM Plex Mono',monospace; font-size:11.5px; padding:0;
+  }
+  .session-bar button.link:hover{color:var(--brass-bright);}
+
+  #userAdminOverlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:9998;
+    display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  #userAdminOverlay.hidden{display:none;}
+  .useradmin-box{
+    width:100%; max-width:520px; max-height:82vh; overflow:auto; background:var(--bg-panel);
+    border:1px solid var(--line); border-top:4px solid var(--brass); padding:22px 24px; position:relative;
+  }
+  .useradmin-box .close-x{
+    position:absolute; top:14px; right:16px; background:none; border:none; color:var(--bone-dim);
+    font-size:18px; cursor:pointer; line-height:1;
+  }
+  .useradmin-box .close-x:hover{color:var(--bone);}
+  .useradmin-row{
+    display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--line);
+    font-family:'IBM Plex Mono',monospace; font-size:12.5px;
+  }
+  .useradmin-row .uname{flex:1; color:var(--bone);}
+  .useradmin-row .urole{color:var(--brass); text-transform:uppercase; font-size:10.5px;}
+  .useradmin-form{display:flex; gap:8px; flex-wrap:wrap; margin-top:16px; align-items:end;}
+  .useradmin-form label{
+    display:flex; flex-direction:column; gap:4px; font-size:11px; color:var(--bone-dim);
+    font-family:'IBM Plex Mono',monospace; text-transform:uppercase;
+  }
 </style>
 </head>
 <body>
-<div class="app">
+
+<div id="loginOverlay">
+  <div class="login-box">
+    <div class="inner">
+      <h1>Accès restreint</h1>
+      <div class="sub">Grand Alliance — Outil de Pairing</div>
+      <form id="loginForm" autocomplete="off">
+        <label for="loginUsername">Identifiant</label>
+        <input type="text" id="loginUsername" autocomplete="username" required>
+        <label for="loginPassword">Mot de passe</label>
+        <input type="password" id="loginPassword" autocomplete="current-password" required>
+        <button type="submit" class="btn">Se connecter</button>
+        <div class="err" id="loginError"></div>
+      </form>
+      <div class="foot-hint">Accès réservé aux membres de l'équipe. Contacte l'admin si tu n'as pas de compte.</div>
+    </div>
+  </div>
+</div>
+
+<div id="userAdminOverlay" class="hidden">
+  <div class="useradmin-box">
+    <button class="close-x" id="closeUserAdminBtn" type="button">✕</button>
+    <h2 class="section-title" style="margin-top:0;">Gestion des comptes</h2>
+    <div class="hint">
+      Les comptes « utilisateur » créés ici ont accès à l'outil mais pas aux réglages de la clé API Gemini.
+      Cette protection est un simple filtre côté navigateur (pas une sécurité serveur) : toute personne ayant
+      accès au fichier HTML ou aux outils de développement du navigateur peut la contourner. Ne pas l'utiliser
+      pour protéger des données réellement sensibles.
+    </div>
+    <div id="userAdminList"></div>
+    <div class="useradmin-form">
+      <label>Identifiant<input type="text" id="newUserName" autocomplete="off"></label>
+      <label>Mot de passe<input type="password" id="newUserPass" autocomplete="new-password"></label>
+      <button class="btn secondary" id="addUserBtn" type="button">Ajouter le compte</button>
+    </div>
+    <div class="err" id="userAdminError"></div>
+  </div>
+</div>
+
+<div id="appRoot" class="app hidden">
+
+  <div class="session-bar">
+    <span class="who" id="sessionWho"></span>
+    <button class="link" id="manageUsersBtn" type="button" style="display:none;">Gérer les comptes</button>
+    <button class="link" id="logoutBtn" type="button">Déconnexion</button>
+  </div>
 
   <div class="cmd-header">
     <div class="sub" id="formatSub">Team Event · Format 8v8 · General's Handbook 2026-27 (Aqshy)</div>
@@ -1953,6 +2065,195 @@ function renderAll(){
 // sauvegarde est corrompue, on repart simplement sur l'état par défaut déjà initialisé.
 loadStateFromStorage();
 renderAll();
+
+/* ================================================================================
+   AUTHENTIFICATION — protection côté navigateur (pas une sécurité serveur)
+   -----------------------------------------------------------------------
+   Les comptes et mots de passe (hashés en SHA-256) sont stockés dans le
+   localStorage du navigateur, sur cet appareil. Cet écran de connexion
+   empêche un usage "occasionnel" par une personne non autorisée, mais
+   n'importe qui ayant accès au fichier HTML ou aux outils de développement
+   du navigateur (F12) peut lire/modifier ce localStorage et contourner
+   l'écran. Ne pas s'en servir pour protéger des données réellement
+   sensibles (ce n'est pas le cas ici : pas de données perso, pas de clé
+   API partagée — chaque appareil doit renseigner la sienne).
+================================================================================= */
+const AUTH_STORAGE_KEY = 'aos-pairing-tool-users-v1';
+const SESSION_STORAGE_KEY = 'aos-pairing-tool-session-v1';
+const ADMIN_DEFAULT_HASH = '871872670134933f1bc52cde8043cb429efcdab63266dda1cc27244ee107a505'; // sha256('totototo')
+
+async function sha256Hex(text){
+  const enc = new TextEncoder().encode(text);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+function loadUsers(){
+  try{
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    if(!raw) throw new Error('none');
+    const users = JSON.parse(raw);
+    if(!Array.isArray(users) || !users.length) throw new Error('empty');
+    if(!users.some(u=>u.username==='admin')){
+      users.unshift({ username:'admin', passHash: ADMIN_DEFAULT_HASH, role:'admin' });
+      saveUsers(users);
+    }
+    return users;
+  }catch(e){
+    const initial = [{ username:'admin', passHash: ADMIN_DEFAULT_HASH, role:'admin' }];
+    saveUsers(initial);
+    return initial;
+  }
+}
+function saveUsers(users){
+  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(users));
+}
+function getSession(){
+  try{
+    const raw = localStorage.getItem(SESSION_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){ return null; }
+}
+function setSession(username){
+  localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ username }));
+}
+function clearSession(){
+  localStorage.removeItem(SESSION_STORAGE_KEY);
+}
+function currentUserRecord(){
+  const session = getSession();
+  if(!session) return null;
+  return loadUsers().find(u=>u.username===session.username) || null;
+}
+
+function escapeHtmlAuth(s){
+  return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function showApp(){
+  document.getElementById('loginOverlay').classList.add('hidden');
+  document.getElementById('appRoot').classList.remove('hidden');
+  applyRoleRestrictions();
+}
+function showLogin(){
+  document.getElementById('appRoot').classList.add('hidden');
+  document.getElementById('userAdminOverlay').classList.add('hidden');
+  document.getElementById('loginOverlay').classList.remove('hidden');
+  const pw = document.getElementById('loginPassword');
+  if(pw) pw.value = '';
+}
+
+function applyRoleRestrictions(){
+  const user = currentUserRecord();
+  const isAdmin = !!user && user.role === 'admin';
+
+  const who = document.getElementById('sessionWho');
+  if(who) who.textContent = user ? `Connecté : ${user.username} (${isAdmin ? 'admin' : 'utilisateur'})` : '';
+
+  const manageBtn = document.getElementById('manageUsersBtn');
+  if(manageBtn) manageBtn.style.display = isAdmin ? '' : 'none';
+
+  // Réservé à l'admin : réglages de la clé API Gemini + rafraîchissement de la méta
+  ['toggleGeminiSettingsBtn','toggleGeminiSettingsBtn2'].forEach(id=>{
+    const btn = document.getElementById(id);
+    if(btn) btn.style.display = isAdmin ? '' : 'none';
+  });
+  ['geminiSettingsPanel','geminiSettingsPanel2'].forEach(id=>{
+    const panel = document.getElementById(id);
+    if(panel && !isAdmin) panel.style.display = 'none';
+  });
+  // Le rafraîchissement de la méta reste accessible à tous les comptes connectés :
+  // il utilise la clé API déjà enregistrée sur cet appareil par l'admin, sans jamais
+  // l'afficher ni permettre de la modifier depuis un compte non-admin.
+}
+
+document.getElementById('loginForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const uname = document.getElementById('loginUsername').value.trim();
+  const pass = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  const users = loadUsers();
+  const hash = await sha256Hex(pass);
+  const found = users.find(u=>u.username===uname && u.passHash===hash);
+  if(!found){
+    errEl.textContent = 'Identifiant ou mot de passe incorrect.';
+    return;
+  }
+  setSession(uname);
+  document.getElementById('loginUsername').value='';
+  document.getElementById('loginPassword').value='';
+  showApp();
+});
+
+document.getElementById('logoutBtn').addEventListener('click', ()=>{
+  clearSession();
+  showLogin();
+});
+
+/* ---- Gestion des comptes (admin uniquement) ---- */
+function renderUserAdminList(){
+  const users = loadUsers();
+  const container = document.getElementById('userAdminList');
+  container.innerHTML = users.map(u=>`
+    <div class="useradmin-row">
+      <span class="uname">${escapeHtmlAuth(u.username)}</span>
+      <span class="urole">${escapeHtmlAuth(u.role)}</span>
+      ${u.username!=='admin' ? `<button class="btn secondary" data-del="${escapeHtmlAuth(u.username)}" type="button" style="padding:3px 8px;font-size:11px;">Supprimer</button>` : ''}
+    </div>
+  `).join('');
+  container.querySelectorAll('[data-del]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const uname = btn.getAttribute('data-del');
+      if(!confirm(`Supprimer le compte "${uname}" ?`)) return;
+      const users = loadUsers().filter(u=>u.username!==uname);
+      saveUsers(users);
+      renderUserAdminList();
+    });
+  });
+}
+
+document.getElementById('manageUsersBtn').addEventListener('click', ()=>{
+  renderUserAdminList();
+  document.getElementById('userAdminError').textContent = '';
+  document.getElementById('userAdminOverlay').classList.remove('hidden');
+});
+document.getElementById('closeUserAdminBtn').addEventListener('click', ()=>{
+  document.getElementById('userAdminOverlay').classList.add('hidden');
+});
+document.getElementById('addUserBtn').addEventListener('click', async ()=>{
+  const uname = document.getElementById('newUserName').value.trim();
+  const pass = document.getElementById('newUserPass').value;
+  const errEl = document.getElementById('userAdminError');
+  errEl.textContent = '';
+  if(!uname || !pass){ errEl.textContent = 'Identifiant et mot de passe requis.'; return; }
+  if(pass.length < 4){ errEl.textContent = 'Mot de passe trop court (4 caractères minimum).'; return; }
+  const users = loadUsers();
+  if(users.some(u=>u.username.toLowerCase()===uname.toLowerCase())){
+    errEl.textContent = 'Cet identifiant existe déjà.';
+    return;
+  }
+  const passHash = await sha256Hex(pass);
+  users.push({ username: uname, passHash, role: 'user' });
+  saveUsers(users);
+  document.getElementById('newUserName').value = '';
+  document.getElementById('newUserPass').value = '';
+  renderUserAdminList();
+});
+
+/* ---- Initialisation de la session au chargement de la page ---- */
+(function initAuth(){
+  loadUsers(); // garantit l'existence du compte admin par défaut
+  const session = getSession();
+  const record = session ? currentUserRecord() : null;
+  if(record){
+    showApp();
+  } else {
+    clearSession();
+    showLogin();
+  }
+})();
+
 </script>
 </body>
 </html>
