@@ -561,6 +561,29 @@
     <input type="file" id="importFile" accept="application/json" style="display:none;">
     <span id="autoSaveIndicator" style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--bone-dim);margin-left:auto;"></span>
   </div>
+
+  <div class="toolbar" style="align-items:center;">
+    <button class="btn secondary" id="cloudPullBtn">🔄 Charger depuis le cloud</button>
+    <button class="btn secondary" id="cloudPushBtn">☁️ Envoyer vers le cloud</button>
+    <button class="btn secondary" id="toggleCloudSettingsBtn" style="display:none;">⚙️ Réglages Cloud</button>
+    <span id="cloudSyncIndicator" style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--bone-dim);margin-left:auto;"></span>
+  </div>
+  <div id="cloudSettingsPanel" style="display:none;border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-top:-6px;margin-bottom:18px;background:rgba(255,255,255,0.02);">
+    <div class="hint" style="margin-top:0;">
+      Renseigne ici le Bin ID et une clé API <a href="https://jsonbin.io" target="_blank" rel="noopener" style="color:var(--brass-bright);">jsonbin.io</a> pour centraliser la configuration en ligne (au lieu de la ressaisir sur chaque appareil). Privilégie une <b>Access Key</b> limitée à ce seul bin (lecture + écriture) plutôt que la Master Key de ton compte. Cette clé part dans chaque requête réseau vers jsonbin.io : n'importe quel utilisateur connecté qui ouvre les outils de développement de son navigateur (onglet Réseau) peut la voir passer, même si elle n'est jamais affichée dans l'interface. Tout le monde (admin et utilisateurs) peut charger/envoyer les données une fois configuré ; seul l'admin peut modifier le Bin ID et la clé.
+    </div>
+    <label style="margin-top:10px;max-width:420px;">Bin ID jsonbin.io
+      <input type="text" id="cloudBinIdInput" placeholder="ex : 65fa1234abcd5678ef901234" autocomplete="off">
+    </label>
+    <label style="margin-top:10px;max-width:420px;">Clé API (Access Key recommandée, ou Master Key)
+      <input type="password" id="cloudApiKeyInput" autocomplete="off">
+    </label>
+    <div class="toolbar" style="margin-top:8px;">
+      <button class="btn secondary" id="saveCloudSettingsBtn">Enregistrer</button>
+      <span id="cloudSettingsSavedIndicator" style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--bone-dim);"></span>
+    </div>
+  </div>
+
   <div class="footer-note">
     Outil non-officiel, indépendant de Games Workshop. Les données de méta faction et d'affinité Battle Tactics × Battleplan sont des estimations de départ à ajuster selon ton propre scouting — utilise le bouton "Rafraîchir la méta" (onglet Matchups, avec ta propre clé API Gemini renseignée dans les Réglages Gemini) pour les mettre à jour via recherche web. Basé sur le General's Handbook 2026-27, saison Aqshy.
   </div>
@@ -1964,6 +1987,7 @@ function saveStateToStorage(){
         const mm = String(now.getMinutes()).padStart(2,'0');
         ind.textContent = `✓ Sauvegardé automatiquement (${hh}:${mm})`;
       }
+      if(typeof scheduleCloudPush === 'function') scheduleCloudPush();
     }catch(e){
       const ind = document.getElementById('autoSaveIndicator');
       if(ind) ind.textContent = '⚠ Sauvegarde locale indisponible';
@@ -2153,6 +2177,13 @@ function applyRoleRestrictions(){
   const manageBtn = document.getElementById('manageUsersBtn');
   if(manageBtn) manageBtn.style.display = isAdmin ? '' : 'none';
 
+  const cloudSettingsBtn = document.getElementById('toggleCloudSettingsBtn');
+  if(cloudSettingsBtn) cloudSettingsBtn.style.display = isAdmin ? '' : 'none';
+  if(!isAdmin){
+    const cloudPanel = document.getElementById('cloudSettingsPanel');
+    if(cloudPanel) cloudPanel.style.display = 'none';
+  }
+
   // Réservé à l'admin : réglages de la clé API Gemini + rafraîchissement de la méta
   ['toggleGeminiSettingsBtn','toggleGeminiSettingsBtn2'].forEach(id=>{
     const btn = document.getElementById(id);
@@ -2252,6 +2283,156 @@ document.getElementById('addUserBtn').addEventListener('click', async ()=>{
     clearSession();
     showLogin();
   }
+})();
+
+/* ================================================================================
+   SYNCHRONISATION CLOUD (jsonbin.io) — optionnelle
+   -----------------------------------------------------------------------
+   Permet de centraliser l'état (rosters, matrices, pairing en cours...) dans un
+   bin jsonbin.io partagé, pour éviter de reconfigurer l'outil sur chaque appareil.
+   Limites à connaître :
+   - Ce n'est pas une synchronisation temps réel ni une fusion intelligente :
+     le dernier envoi écrase les données précédentes ("dernier arrivé, dernier
+     servi"). Si deux personnes modifient l'outil en même temps sur deux
+     appareils différents, l'une des deux modifications sera perdue.
+   - Le plan gratuit jsonbin.io limite chaque bin à 100 Ko et à 1 requête/seconde.
+   - La clé API configurée ici part dans les en-têtes HTTP de chaque requête
+     envoyée depuis le navigateur : elle est visible dans l'onglet Réseau des
+     outils de développement par n'importe quel utilisateur connecté, même si
+     elle n'est jamais affichée dans l'interface. Préfère une Access Key limitée
+     à ce seul bin (lecture + écriture) plutôt que la Master Key de ton compte.
+================================================================================= */
+const CLOUD_SETTINGS_KEY = 'aos-pairing-tool-cloud-v1';
+const JSONBIN_ROOT = 'https://api.jsonbin.io/v3';
+
+function loadCloudSettings(){
+  try{
+    const raw = localStorage.getItem(CLOUD_SETTINGS_KEY);
+    if(!raw) return { binId:'', apiKey:'' };
+    const parsed = JSON.parse(raw);
+    return { binId: parsed.binId || '', apiKey: parsed.apiKey || '' };
+  }catch(e){
+    return { binId:'', apiKey:'' };
+  }
+}
+function saveCloudSettings(settings){
+  try{
+    localStorage.setItem(CLOUD_SETTINGS_KEY, JSON.stringify(settings));
+    return true;
+  }catch(e){
+    return false;
+  }
+}
+function setCloudIndicator(text, isError){
+  const ind = document.getElementById('cloudSyncIndicator');
+  if(!ind) return;
+  ind.textContent = text;
+  ind.style.color = isError ? 'var(--red-bright)' : 'var(--bone-dim)';
+}
+
+let cloudApplyingRemote = false;
+let cloudPushTimer = null;
+
+async function cloudPull(showBusyMessage){
+  const { binId, apiKey } = loadCloudSettings();
+  if(!binId || !apiKey){
+    if(showBusyMessage) setCloudIndicator('Synchronisation cloud non configurée (demande à l\'admin).', true);
+    return false;
+  }
+  if(showBusyMessage) setCloudIndicator('Chargement depuis le cloud…');
+  try{
+    const resp = await fetch(`${JSONBIN_ROOT}/b/${encodeURIComponent(binId)}/latest`, {
+      method:'GET',
+      headers:{ 'X-Master-Key': apiKey, 'X-Bin-Meta':'false' }
+    });
+    if(!resp.ok){
+      if(resp.status===404) setCloudIndicator('Bin cloud introuvable : vérifie le Bin ID.', true);
+      else if(resp.status===401 || resp.status===403) setCloudIndicator('Clé API cloud refusée par jsonbin.io.', true);
+      else setCloudIndicator(`Erreur cloud (${resp.status}).`, true);
+      return false;
+    }
+    const loaded = await resp.json();
+    if(!loaded || typeof loaded !== 'object') throw new Error('Réponse cloud invalide');
+    cloudApplyingRemote = true;
+    applyLoadedState(loaded);
+    renderAll();
+    cloudApplyingRemote = false;
+    const now = new Date();
+    setCloudIndicator(`☁ Chargé depuis le cloud (${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')})`);
+    return true;
+  }catch(e){
+    cloudApplyingRemote = false;
+    setCloudIndicator('⚠ Connexion au cloud impossible.', true);
+    return false;
+  }
+}
+
+async function cloudPush(showBusyMessage){
+  const { binId, apiKey } = loadCloudSettings();
+  if(!binId || !apiKey){
+    if(showBusyMessage) setCloudIndicator('Synchronisation cloud non configurée (demande à l\'admin).', true);
+    return false;
+  }
+  if(showBusyMessage) setCloudIndicator('Envoi vers le cloud…');
+  try{
+    const resp = await fetch(`${JSONBIN_ROOT}/b/${encodeURIComponent(binId)}`, {
+      method:'PUT',
+      headers:{ 'Content-Type':'application/json', 'X-Master-Key': apiKey, 'X-Bin-Versioning':'false' },
+      body: JSON.stringify(state)
+    });
+    if(!resp.ok){
+      if(resp.status===401 || resp.status===403) setCloudIndicator('Clé API cloud refusée par jsonbin.io.', true);
+      else if(resp.status===404) setCloudIndicator('Bin cloud introuvable : vérifie le Bin ID.', true);
+      else if(resp.status===400) setCloudIndicator('Rejeté par jsonbin.io (config trop volumineuse ?).', true);
+      else setCloudIndicator(`Erreur cloud (${resp.status}).`, true);
+      return false;
+    }
+    const now = new Date();
+    setCloudIndicator(`☁ Envoyé vers le cloud (${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')})`);
+    return true;
+  }catch(e){
+    setCloudIndicator('⚠ Connexion au cloud impossible.', true);
+    return false;
+  }
+}
+
+// Appelé automatiquement après chaque sauvegarde locale, avec un débounce plus
+// large (2s) que la sauvegarde locale, pour respecter la limite de 1 requête/
+// seconde du plan gratuit jsonbin.io et éviter de spammer l'API à chaque frappe.
+function scheduleCloudPush(){
+  if(cloudApplyingRemote) return; // on vient de recevoir des données du cloud, inutile de les renvoyer aussitôt
+  const { binId, apiKey } = loadCloudSettings();
+  if(!binId || !apiKey) return;
+  clearTimeout(cloudPushTimer);
+  cloudPushTimer = setTimeout(()=>{ cloudPush(false); }, 2000);
+}
+
+document.getElementById('cloudPullBtn').addEventListener('click', ()=>{ cloudPull(true); });
+document.getElementById('cloudPushBtn').addEventListener('click', ()=>{ cloudPush(true); });
+
+document.getElementById('toggleCloudSettingsBtn').addEventListener('click', ()=>{
+  const panel = document.getElementById('cloudSettingsPanel');
+  const s = loadCloudSettings();
+  document.getElementById('cloudBinIdInput').value = s.binId;
+  document.getElementById('cloudApiKeyInput').value = s.apiKey;
+  panel.style.display = (panel.style.display==='none') ? 'block' : 'none';
+});
+document.getElementById('saveCloudSettingsBtn').addEventListener('click', ()=>{
+  const binId = document.getElementById('cloudBinIdInput').value.trim();
+  const apiKey = document.getElementById('cloudApiKeyInput').value.trim();
+  const ok = saveCloudSettings({ binId, apiKey });
+  const ind = document.getElementById('cloudSettingsSavedIndicator');
+  if(ind) ind.textContent = ok ? '✓ Enregistré' : '⚠ Échec de l\'enregistrement';
+  setTimeout(()=>{ if(ind) ind.textContent=''; }, 2500);
+});
+
+// Tentative de chargement initial depuis le cloud au démarrage : silencieuse,
+// si rien n'est configuré ou si le réseau échoue, l'outil continue de fonctionner
+// avec les données locales déjà chargées par loadStateFromStorage().
+(function tryInitialCloudSync(){
+  const { binId, apiKey } = loadCloudSettings();
+  if(!binId || !apiKey) return;
+  cloudPull(false);
 })();
 
 </script>
