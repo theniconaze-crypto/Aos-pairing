@@ -586,7 +586,7 @@
   </div>
   <div id="cloudSettingsPanel" style="display:none;border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-top:-6px;margin-bottom:18px;background:rgba(255,255,255,0.02);">
     <div class="hint" style="margin-top:0;">
-      Renseigne ici le Bin ID et une clé API <a href="https://jsonbin.io" target="_blank" rel="noopener" style="color:var(--brass-bright);">jsonbin.io</a> pour centraliser la configuration en ligne (au lieu de la ressaisir sur chaque appareil). Privilégie une <b>Access Key</b> limitée à ce seul bin (lecture + écriture) plutôt que la Master Key de ton compte. Cette clé part dans chaque requête réseau vers jsonbin.io : n'importe quel utilisateur connecté qui ouvre les outils de développement de son navigateur (onglet Réseau) peut la voir passer, même si elle n'est jamais affichée dans l'interface. Tout le monde (admin et utilisateurs) peut charger/envoyer les données une fois configuré ; seul l'admin peut modifier le Bin ID et la clé.
+      Renseigne ici le Bin ID et une clé API <a href="https://jsonbin.io" target="_blank" rel="noopener" style="color:var(--brass-bright);">jsonbin.io</a> pour centraliser la configuration en ligne (au lieu de la ressaisir sur chaque appareil). Privilégie une <b>Access Key</b> limitée à ce seul bin (lecture + écriture) plutôt que la Master Key de ton compte. Cette clé part dans chaque requête réseau vers jsonbin.io : n'importe quel utilisateur connecté qui ouvre les outils de développement de son navigateur (onglet Réseau) peut la voir passer, même si elle n'est jamais affichée dans l'interface. Tout le monde (admin et utilisateurs) peut charger/envoyer les données une fois configuré ; seul l'admin peut modifier le Bin ID et la clé. Ce même bin contient aussi la liste des comptes (identifiants + mots de passe hashés) : une fois configuré, un compte créé ou modifié sur un appareil devient utilisable depuis n'importe quel autre appareil connecté au même bin.
     </div>
     <label style="margin-top:10px;max-width:420px;">Bin ID jsonbin.io
       <input type="text" id="cloudBinIdInput" placeholder="ex : 65fa1234abcd5678ef901234" autocomplete="off">
@@ -2337,6 +2337,7 @@ function renderUserAdminList(){
       if(!confirm(`Supprimer le compte "${uname}" ?`)) return;
       const users = loadUsers().filter(u=>u.username!==uname);
       saveUsers(users);
+      if(typeof scheduleCloudPush === 'function') scheduleCloudPush();
       renderUserAdminList();
     });
   });
@@ -2377,6 +2378,7 @@ document.getElementById('changePassBtn').addEventListener('click', async ()=>{
   if(users[idx].passHash !== currentHash){ errEl.textContent = 'Mot de passe actuel incorrect.'; return; }
   users[idx].passHash = await sha256Hex(next);
   saveUsers(users);
+  if(typeof scheduleCloudPush === 'function') scheduleCloudPush();
   document.getElementById('changePassCurrent').value = '';
   document.getElementById('changePassNew').value = '';
   document.getElementById('changePassConfirm').value = '';
@@ -2397,6 +2399,7 @@ document.getElementById('addUserBtn').addEventListener('click', async ()=>{
   const passHash = await sha256Hex(pass);
   users.push({ username: uname, passHash, role: 'user' });
   saveUsers(users);
+  if(typeof scheduleCloudPush === 'function') scheduleCloudPush();
   document.getElementById('newUserName').value = '';
   document.getElementById('newUserPass').value = '';
   renderUserAdminList();
@@ -2483,8 +2486,16 @@ async function cloudPull(showBusyMessage){
     }
     const loaded = await resp.json();
     if(!loaded || typeof loaded !== 'object') throw new Error('Réponse cloud invalide');
+    // Les comptes utilisateurs voyagent dans le même bin, sous la clé __users.
+    // On les applique en premier (dernier arrivé, dernier servi, comme pour le reste),
+    // puis on retire la clé avant d'appliquer le reste de l'état de pairing.
+    if(Array.isArray(loaded.__users) && loaded.__users.length){
+      saveUsers(loaded.__users);
+    }
+    const stateOnly = Object.assign({}, loaded);
+    delete stateOnly.__users;
     cloudApplyingRemote = true;
-    applyLoadedState(loaded);
+    applyLoadedState(stateOnly);
     renderAll();
     cloudApplyingRemote = false;
     const now = new Date();
@@ -2508,7 +2519,7 @@ async function cloudPush(showBusyMessage){
     const resp = await fetch(`${JSONBIN_ROOT}/b/${encodeURIComponent(binId)}`, {
       method:'PUT',
       headers:{ 'Content-Type':'application/json', 'X-Master-Key': apiKey, 'X-Bin-Versioning':'false' },
-      body: JSON.stringify(state)
+      body: JSON.stringify(Object.assign({}, state, { __users: loadUsers() }))
     });
     if(!resp.ok){
       if(resp.status===401 || resp.status===403) setCloudIndicator('Clé API cloud refusée par jsonbin.io.', true);
