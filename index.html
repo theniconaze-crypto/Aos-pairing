@@ -361,6 +361,20 @@
       <button class="btn secondary" id="addUserBtn" type="button">Ajouter le compte</button>
     </div>
     <div class="err" id="userAdminError"></div>
+
+    <hr style="border:none; border-top:1px solid var(--line); margin:22px 0;">
+    <h2 class="section-title" style="margin-top:0;">Changer mon mot de passe</h2>
+    <div class="hint">
+      Modifie le mot de passe du compte actuellement connecté (<b id="changePassCurrentUser"></b>).
+    </div>
+    <div class="useradmin-form">
+      <label>Mot de passe actuel<input type="password" id="changePassCurrent" autocomplete="current-password"></label>
+      <label>Nouveau mot de passe<input type="password" id="changePassNew" autocomplete="new-password"></label>
+      <label>Confirmer<input type="password" id="changePassConfirm" autocomplete="new-password"></label>
+      <button class="btn secondary" id="changePassBtn" type="button">Changer le mot de passe</button>
+    </div>
+    <div class="err" id="changePassError"></div>
+    <div class="hint" id="changePassSuccess" style="display:none; color:var(--brass-bright);">Mot de passe modifié avec succès.</div>
   </div>
 </div>
 
@@ -2331,10 +2345,42 @@ function renderUserAdminList(){
 document.getElementById('manageUsersBtn').addEventListener('click', ()=>{
   renderUserAdminList();
   document.getElementById('userAdminError').textContent = '';
+  const session = getSession();
+  document.getElementById('changePassCurrentUser').textContent = session ? session.username : '';
+  document.getElementById('changePassCurrent').value = '';
+  document.getElementById('changePassNew').value = '';
+  document.getElementById('changePassConfirm').value = '';
+  document.getElementById('changePassError').textContent = '';
+  document.getElementById('changePassSuccess').style.display = 'none';
   document.getElementById('userAdminOverlay').classList.remove('hidden');
 });
 document.getElementById('closeUserAdminBtn').addEventListener('click', ()=>{
   document.getElementById('userAdminOverlay').classList.add('hidden');
+});
+document.getElementById('changePassBtn').addEventListener('click', async ()=>{
+  const errEl = document.getElementById('changePassError');
+  const okEl = document.getElementById('changePassSuccess');
+  errEl.textContent = '';
+  okEl.style.display = 'none';
+  const session = getSession();
+  if(!session){ errEl.textContent = 'Session invalide, reconnecte-toi.'; return; }
+  const current = document.getElementById('changePassCurrent').value;
+  const next = document.getElementById('changePassNew').value;
+  const confirmNext = document.getElementById('changePassConfirm').value;
+  if(!current || !next || !confirmNext){ errEl.textContent = 'Tous les champs sont requis.'; return; }
+  if(next.length < 4){ errEl.textContent = 'Nouveau mot de passe trop court (4 caractères minimum).'; return; }
+  if(next !== confirmNext){ errEl.textContent = 'La confirmation ne correspond pas au nouveau mot de passe.'; return; }
+  const users = loadUsers();
+  const idx = users.findIndex(u=>u.username===session.username);
+  if(idx===-1){ errEl.textContent = 'Compte introuvable.'; return; }
+  const currentHash = await sha256Hex(current);
+  if(users[idx].passHash !== currentHash){ errEl.textContent = 'Mot de passe actuel incorrect.'; return; }
+  users[idx].passHash = await sha256Hex(next);
+  saveUsers(users);
+  document.getElementById('changePassCurrent').value = '';
+  document.getElementById('changePassNew').value = '';
+  document.getElementById('changePassConfirm').value = '';
+  okEl.style.display = '';
 });
 document.getElementById('addUserBtn').addEventListener('click', async ()=>{
   const uname = document.getElementById('newUserName').value.trim();
