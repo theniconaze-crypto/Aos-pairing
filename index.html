@@ -456,7 +456,12 @@
     <details class="advanced" open>
       <summary>Avancé — suggérer les matchups à partir de résultats de tournoi (faction vs faction)</summary>
       <div class="inner">
-        <div class="hint">Le tableau ci-dessous est pré-rempli à partir d'une synthèse de win rates de tournois publiés courant juillet 2026, saison Aqshy (à ajuster à ta guise, ou à écraser avec tes propres données). Échelle -3 (grosse défavorable) à +3 (grosse favorable). Les 27 factions du GHB apparaissent toutes ci-dessous, en lignes (ma faction) et en colonnes (faction adverse), que tu les aies déjà saisies dans un roster ou non.</div>
+        <div class="hint">Le tableau ci-dessous est pré-rempli à partir d'une synthèse de win rates de tournois publiés courant juillet 2026, saison Aqshy (à ajuster à ta guise, ou à écraser avec tes propres données). Échelle -3 (grosse défavorable) à +3 (grosse favorable). Les 27 factions du GHB apparaissent toutes ci-dessous, en lignes (ma faction) et en colonnes (faction adverse), que tu les aies déjà saisies dans un roster ou non. Le filtre ci-dessous ne réduit que les colonnes (faction adverse) : coche une ou plusieurs factions pour voir uniquement les matchups de toutes mes factions contre celles-ci ; les lignes restent toujours toutes affichées. Aucune case cochée = toutes les factions affichées.</div>
+        <div class="toolbar" style="align-items:flex-start;">
+          <input type="text" id="factionMetaFilterInput" placeholder="Filtrer les colonnes par nom de faction..." style="flex:1;min-width:220px;">
+          <button class="btn secondary" id="factionMetaFilterClearBtn">Réinitialiser le filtre</button>
+        </div>
+        <div id="factionMetaFilterCheckboxes" style="display:flex;flex-wrap:wrap;gap:6px 16px;max-height:180px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px;"></div>
         <div class="hint" id="factionMetaEmpty" style="display:none;"></div>
         <div class="matrix-wrap" id="factionMetaWrap"><table class="matrix" id="factionMetaMatrix"></table></div>
         <div class="hint" id="factionMetaStatus" style="margin-top:8px;"></div>
@@ -1312,11 +1317,49 @@ function renderFactionPowerTable(){
   });
 }
 
+// Filtre d'affichage du tableau de suggestion tournoi : ne réduit QUE les colonnes
+// (faction adverse) — les lignes (mes factions) restent toujours toutes affichées.
+// Cocher une ou plusieurs factions (ou taper un fragment dans le champ de recherche,
+// si aucune case n'est cochée) affiche donc "toutes mes factions vs cette/ces
+// faction(s) adverse(s)". N'affecte que l'affichage, jamais les données stockées
+// dans state.factionMeta.
+function filteredFactionMetaColumns(){
+  const input = document.getElementById('factionMetaFilterInput');
+  const container = document.getElementById('factionMetaFilterCheckboxes');
+  const search = input ? input.value.trim().toLowerCase() : '';
+  const checked = container ? Array.from(container.querySelectorAll('input[type=checkbox]:checked')).map(c=>c.value) : [];
+  if(checked.length>0) return FACTION_ORDER.filter(f=>checked.includes(f));
+  if(search) return FACTION_ORDER.filter(f=>f.toLowerCase().includes(search));
+  return FACTION_ORDER.slice();
+}
+function initFactionMetaFilter(){
+  const container = document.getElementById('factionMetaFilterCheckboxes');
+  if(container && container.children.length===0){
+    FACTION_ORDER.forEach(f=>{
+      const label = document.createElement('label');
+      label.style.cssText = 'display:flex;align-items:center;gap:5px;font-size:12.5px;font-family:\'IBM Plex Sans\',sans-serif;white-space:nowrap;cursor:pointer;';
+      const cb = document.createElement('input');
+      cb.type='checkbox'; cb.value=f;
+      cb.addEventListener('change', renderFactionMetaMatrix);
+      label.appendChild(cb);
+      label.appendChild(document.createTextNode(f));
+      container.appendChild(label);
+    });
+  }
+  const input = document.getElementById('factionMetaFilterInput');
+  const clearBtn = document.getElementById('factionMetaFilterClearBtn');
+  if(input) input.addEventListener('input', renderFactionMetaMatrix);
+  if(clearBtn) clearBtn.addEventListener('click', ()=>{
+    if(input) input.value='';
+    if(container) container.querySelectorAll('input[type=checkbox]').forEach(c=>{ c.checked=false; });
+    renderFactionMetaMatrix();
+  });
+}
+
 function renderFactionMetaMatrix(){
-  // Tableau complet des 27 factions (toutes celles du GHB) en lignes ET en colonnes,
-  // plutôt que seulement celles présentes dans les rosters : permet de préparer la
-  // méta faction vs faction avant même d'avoir saisi le moindre roster.
-  const myF = FACTION_ORDER, oppF = FACTION_ORDER;
+  // Les lignes (mes factions) affichent toujours les 27 factions du GHB. Seules les
+  // colonnes (faction adverse) sont réduites par le filtre — voir filteredFactionMetaColumns.
+  const myF = FACTION_ORDER, oppF = filteredFactionMetaColumns();
   const wrap = document.getElementById('factionMetaWrap');
   const emptyMsg = document.getElementById('factionMetaEmpty');
   const table = document.getElementById('factionMetaMatrix');
@@ -1324,6 +1367,11 @@ function renderFactionMetaMatrix(){
   if(!table) return;
   if(statusEl && state.factionMetaUpdatedLabel) statusEl.textContent = state.factionMetaUpdatedLabel + '.';
   table.innerHTML='';
+  if(oppF.length===0){
+    if(emptyMsg){ emptyMsg.textContent = 'Aucune faction ne correspond au filtre.'; emptyMsg.style.display='block'; }
+    if(wrap) wrap.style.display='none';
+    return;
+  }
   if(emptyMsg) emptyMsg.style.display='none';
   if(wrap) wrap.style.display='block';
   const thead=document.createElement('tr');
@@ -1938,6 +1986,7 @@ initGeminiSettingsPanel({
   panel:'geminiSettingsPanel2', toggleBtn:'toggleGeminiSettingsBtn2',
   keyInput:'geminiApiKeyInput2', saveBtn:'saveGeminiSettingsBtn2', savedIndicator:'geminiSettingsSavedIndicator2'
 });
+initFactionMetaFilter();
 
 document.getElementById('maxTacticDuplicatesInput').addEventListener('change', e=>{
   const v = parseInt(e.target.value, 10);
