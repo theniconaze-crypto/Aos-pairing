@@ -456,8 +456,8 @@
     <details class="advanced" open>
       <summary>Avancé — suggérer les matchups à partir de résultats de tournoi (faction vs faction)</summary>
       <div class="inner">
-        <div class="hint">Le tableau ci-dessous est pré-rempli à partir d'une synthèse de win rates de tournois publiés courant juillet 2026, saison Aqshy (à ajuster à ta guise, ou à écraser avec tes propres données). Échelle -3 (grosse défavorable) à +3 (grosse favorable). Seules les factions réellement présentes dans tes rosters apparaissent ci-dessous.</div>
-        <div class="hint" id="factionMetaEmpty" style="display:none;">Renseigne d'abord les factions dans les rosters (onglet Configuration) pour faire apparaître ce tableau.</div>
+        <div class="hint">Le tableau ci-dessous est pré-rempli à partir d'une synthèse de win rates de tournois publiés courant juillet 2026, saison Aqshy (à ajuster à ta guise, ou à écraser avec tes propres données). Échelle -3 (grosse défavorable) à +3 (grosse favorable). Les 27 factions du GHB apparaissent toutes ci-dessous, en lignes (ma faction) et en colonnes (faction adverse), que tu les aies déjà saisies dans un roster ou non.</div>
+        <div class="hint" id="factionMetaEmpty" style="display:none;"></div>
         <div class="matrix-wrap" id="factionMetaWrap"><table class="matrix" id="factionMetaMatrix"></table></div>
         <div class="hint" id="factionMetaStatus" style="margin-top:8px;"></div>
         <div class="toolbar">
@@ -1313,7 +1313,10 @@ function renderFactionPowerTable(){
 }
 
 function renderFactionMetaMatrix(){
-  const myF = allMyFactions(), oppF = allOppFactionsInUse();
+  // Tableau complet des 27 factions (toutes celles du GHB) en lignes ET en colonnes,
+  // plutôt que seulement celles présentes dans les rosters : permet de préparer la
+  // méta faction vs faction avant même d'avoir saisi le moindre roster.
+  const myF = FACTION_ORDER, oppF = FACTION_ORDER;
   const wrap = document.getElementById('factionMetaWrap');
   const emptyMsg = document.getElementById('factionMetaEmpty');
   const table = document.getElementById('factionMetaMatrix');
@@ -1321,13 +1324,8 @@ function renderFactionMetaMatrix(){
   if(!table) return;
   if(statusEl && state.factionMetaUpdatedLabel) statusEl.textContent = state.factionMetaUpdatedLabel + '.';
   table.innerHTML='';
-  if(myF.length===0 || oppF.length===0){
-    emptyMsg.style.display='block';
-    wrap.style.display='none';
-    return;
-  }
-  emptyMsg.style.display='none';
-  wrap.style.display='block';
+  if(emptyMsg) emptyMsg.style.display='none';
+  if(wrap) wrap.style.display='block';
   const thead=document.createElement('tr');
   thead.innerHTML='<th class="corner"></th>'+oppF.map(f=>`<th title="${f}">${f}</th>`).join('');
   table.appendChild(thead);
