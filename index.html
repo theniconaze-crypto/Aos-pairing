@@ -138,6 +138,23 @@
     color:var(--bone); font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:600;
   }
   table.matrix input[type=number]:focus{outline:1px solid var(--brass-bright);}
+  table.matrix td.has-mood{padding:0;}
+  table.matrix .cell-flex{
+    display:flex; align-items:center; justify-content:center; gap:1px; padding-right:2px;
+    width:100%; height:100%; box-sizing:border-box;
+  }
+  table.matrix td.has-mood input[type=number]{width:32px; padding:0;}
+  table.matrix .mood-toggle{
+    position:static; font-size:19px; line-height:1; cursor:pointer;
+    user-select:none; opacity:0.85; width:20px; height:20px; flex:0 0 auto;
+    display:flex; align-items:center; justify-content:center;
+  }
+  table.matrix .mood-toggle:hover{opacity:1; transform:scale(1.08);}
+  table.matrix .mood-toggle.mood-empty{
+    border:2px solid var(--line); border-radius:50%; box-sizing:border-box; opacity:0.45;
+    width:13px; height:13px;
+  }
+  table.matrix .mood-toggle.mood-empty:hover{opacity:0.9; border-color:var(--brass-bright);}
 
   details.advanced{margin-top:18px; border:1px solid var(--line); background:var(--bg-panel);}
   details.advanced summary{
@@ -200,6 +217,9 @@
   }
   .rec-choice.best{background:rgba(217,176,110,.14); border:1px solid var(--brass-bright);}
   .rec-choice .rec-label{font-size:9.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--brass);}
+  .mood-badge{
+    font-size:13px; letter-spacing:0; text-transform:none; margin-left:5px; vertical-align:-2px;
+  }
   .rec-choice .rec-name{font-size:12px; font-weight:600; color:var(--bone); min-height:16px;}
   .rec-choice .btn{padding:5px 8px; font-size:10.5px;}
   .rec-more{margin-top:8px;}
@@ -739,6 +759,9 @@ function makeOppTeam(n){
     name: 'Équipe adverse '+n,
     roster: Array.from({length:TEAM_SIZE}, ()=>({name:'', faction:'', tactic1:'', tactic2:''})),
     matchup: Array.from({length:TEAM_SIZE}, ()=>Array(TEAM_SIZE).fill(0)),
+    // Smiley content/mécontent facultatif par case, purement visuel (n'entre jamais dans
+    // l'algorithme de score) : null = aucun smiley, 'happy' ou 'sad'.
+    matchupMood: Array.from({length:TEAM_SIZE}, ()=>Array(TEAM_SIZE).fill(null)),
     oppFit: Array.from({length:TEAM_SIZE}, ()=>Array(TEAM_SIZE).fill(0))
   };
 }
@@ -781,6 +804,20 @@ function resizeMatrixTo(mat, newSize){
   }
   return copy;
 }
+// Même principe que resizeMatrixTo, mais pour la matrice d'humeurs (smiley content/mécontent)
+// de la matrice de matchups : valeur par défaut null (aucun smiley), purement visuelle,
+// jamais utilisée dans les calculs.
+function resizeMoodMatrixTo(mat, newSize){
+  const copy = [];
+  for(let i=0;i<newSize;i++){
+    const row=[];
+    for(let j=0;j<newSize;j++){
+      row.push(mat && mat[i] && mat[i][j]!==undefined ? mat[i][j] : null);
+    }
+    copy.push(row);
+  }
+  return copy;
+}
 function hasDataBeyond(newSize){
   const beyond = (arr)=>arr.slice(newSize).some(e=>e && (e.name||e.faction||e.tactic1||e.tactic2||e.battleplan));
   const oppBeyond = state.oppTeams.some(ot=>beyond(ot.roster));
@@ -802,6 +839,7 @@ function setTeamSize(newSize){
   state.oppTeams.forEach(ot=>{
     ot.roster = resizeArrayTo(ot.roster, TEAM_SIZE, ()=>({name:'', faction:'', tactic1:'', tactic2:''}));
     ot.matchup = resizeMatrixTo(ot.matchup, TEAM_SIZE);
+    ot.matchupMood = resizeMoodMatrixTo(ot.matchupMood, TEAM_SIZE);
     ot.oppFit = resizeMatrixTo(ot.oppFit, TEAM_SIZE);
   });
   state.pairing = resizeArrayTo(state.pairing, TEAM_SIZE, ()=>({myList:null, oppList:null, myScore:null, oppScore:null, oppCandidates:[null,null]}));
@@ -896,6 +934,7 @@ function randomizeOppTeam(idx){
   // On repart d'une matrice à 0 puis on applique la méta faction vs faction pour
   // pré-remplir des matchups plausibles (comme le bouton "Appliquer la méta").
   ot.matchup = Array.from({length:TEAM_SIZE}, ()=>Array(TEAM_SIZE).fill(0));
+  ot.matchupMood = Array.from({length:TEAM_SIZE}, ()=>Array(TEAM_SIZE).fill(null));
   ot.oppFit = Array.from({length:TEAM_SIZE}, ()=>Array(TEAM_SIZE).fill(0));
   applyFactionMetaToTeam(ot, true);
 }
@@ -1211,7 +1250,24 @@ function displayName(entry, fallback){
 }
 
 /* ---------- Rendering: Matchup matrix ---------- */
-function renderMatrix(tableId, rowLabels, colLabels, dataArr, min, max, onChange){
+// moodArr/onMoodChange sont optionnels : quand fournis, chaque case reçoit en plus un
+// petit smiley cliquable (content/mécontent/aucun) purement visuel — il ne modifie
+// jamais dataArr ni le score calculé, seulement moodArr.
+const MOOD_CYCLE = [null, 'happy', 'sad'];
+const MOOD_ICON = { happy: '🙂', sad: '☹️' };
+// Petit badge smiley (purement visuel) à afficher à côté d'une projection de score dans
+// l'onglet Pairing en direct, repris directement de la matrice de matchups (moi ×
+// adversaire) de l'équipe adverse actuellement en direct. Retourne '' si aucun smiley
+// n'a été renseigné pour cette case, ou si l'un des deux index est inconnu.
+function moodBadgeHtml(myIdx, oppIdx){
+  if(myIdx===null || myIdx===undefined || oppIdx===null || oppIdx===undefined) return '';
+  const ot = liveOppTeam();
+  const m = ot.matchupMood && ot.matchupMood[myIdx] ? ot.matchupMood[myIdx][oppIdx] : null;
+  if(!m) return '';
+  const label = m==='happy' ? 'ressenti positif (matrice de matchups)' : 'ressenti négatif (matrice de matchups)';
+  return `<span class="mood-badge" title="${label}">${MOOD_ICON[m]}</span>`;
+}
+function renderMatrix(tableId, rowLabels, colLabels, dataArr, min, max, onChange, moodArr, onMoodChange){
   const table = document.getElementById(tableId);
   table.innerHTML='';
   const thead = document.createElement('tr');
@@ -1234,7 +1290,35 @@ function renderMatrix(tableId, rowLabels, colLabels, dataArr, min, max, onChange
         td.style.background = cellColor(v, min, max);
         onChange && onChange();
       });
-      td.appendChild(inp);
+      if(moodArr){
+        // Le td reste un table-cell normal (obligatoire pour ne pas casser l'alignement
+        // du tableau) ; le flex ne s'applique qu'à ce petit conteneur interne.
+        td.classList.add('has-mood');
+        const wrap = document.createElement('div');
+        wrap.className = 'cell-flex';
+        wrap.appendChild(inp);
+        const mood = document.createElement('span');
+        const setMoodUi = (m)=>{
+          mood.className = 'mood-toggle' + (m ? '' : ' mood-empty');
+          mood.textContent = m ? MOOD_ICON[m] : '';
+          mood.title = m==='happy' ? 'Matchup ressenti positivement (clic pour changer)'
+            : m==='sad' ? 'Matchup ressenti négativement (clic pour changer)'
+            : 'Ajouter un smiley (purement visuel, sans effet sur le score)';
+        };
+        setMoodUi(moodArr[ri][ci]);
+        mood.addEventListener('click', e=>{
+          e.stopPropagation();
+          const cur = moodArr[ri][ci] || null;
+          const next = MOOD_CYCLE[(MOOD_CYCLE.indexOf(cur)+1) % MOOD_CYCLE.length];
+          moodArr[ri][ci] = next;
+          setMoodUi(next);
+          onMoodChange && onMoodChange();
+        });
+        wrap.appendChild(mood);
+        td.appendChild(wrap);
+      } else {
+        td.appendChild(inp);
+      }
       tr.appendChild(td);
     });
     table.appendChild(tr);
@@ -1555,7 +1639,7 @@ async function refreshFactionPowerViaAI(){
 function renderMatchupMatrix(){
   renderOppTeamTabsInto('oppTeamTabsMatchups');
   const ot = activeOppTeam();
-  renderMatrix('matchupMatrix', myLabelsWithFaction(), oppLabelsWithFaction(ot.roster), ot.matchup, -3, 3, renderLive);
+  renderMatrix('matchupMatrix', myLabelsWithFaction(), oppLabelsWithFaction(ot.roster), ot.matchup, -3, 3, renderLive, ot.matchupMood, renderLive);
 }
 function renderMyFitMatrix(){
   renderMatrix('myFitMatrix', myLabels(), tableLabels(), state.myFit, -2, 2, renderLive);
@@ -1717,8 +1801,9 @@ function renderLive(){
       html += `<div class="rec-choices">`;
       topCandidates.forEach((c,rank)=>{
         const entry = state.myTeam[c.myIdx];
+        const mood = p.oppList!==null ? moodBadgeHtml(c.myIdx, p.oppList) : '';
         html += `<div class="rec-choice${rank===0?' best':''}">
-          <div class="rec-label">${rank===0?'① Meilleur choix':'② Second choix'} · score ${c.value.toFixed(1)}</div>
+          <div class="rec-label">${rank===0?'① Meilleur choix':'② Second choix'} · score ${c.value.toFixed(1)}${mood}</div>
           <div class="rec-name">${displayName(entry,'Joueur '+(c.myIdx+1))}${tacticTagsHtml(entry)}</div>
           <button class="btn${rank===0?'':' secondary'}" data-action="setMyChoice" data-t="${tIdx}" data-my="${c.myIdx}">Valider ce choix</button>
         </div>`;
@@ -1765,14 +1850,16 @@ function renderLive(){
           const bestIsC0 = s0 >= s1;
           const oppEntry0 = liveOppTeam().roster[c0];
           const oppEntry1 = liveOppTeam().roster[c1];
+          const mood0 = moodBadgeHtml(p.myList, c0);
+          const mood1 = moodBadgeHtml(p.myList, c1);
           html += `<div class="rec-choices">
             <div class="rec-choice${bestIsC0?' best':''}">
-              <div class="rec-label">${bestIsC0?'① Meilleur choix pour toi':'② Second choix'} · score ${s0>=0?'+':''}${s0.toFixed(1)}</div>
+              <div class="rec-label">${bestIsC0?'① Meilleur choix pour toi':'② Second choix'} · score ${s0>=0?'+':''}${s0.toFixed(1)}${mood0}</div>
               <div class="rec-name">${displayName(oppEntry0,'Adv. '+(c0+1))}${tacticTagsHtml(oppEntry0)}</div>
               <button class="btn${bestIsC0?'':' secondary'}" data-action="chooseOppAttacker" data-t="${tIdx}" data-opp="${c0}">Choisir cet adversaire</button>
             </div>
             <div class="rec-choice${!bestIsC0?' best':''}">
-              <div class="rec-label">${!bestIsC0?'① Meilleur choix pour toi':'② Second choix'} · score ${s1>=0?'+':''}${s1.toFixed(1)}</div>
+              <div class="rec-label">${!bestIsC0?'① Meilleur choix pour toi':'② Second choix'} · score ${s1>=0?'+':''}${s1.toFixed(1)}${mood1}</div>
               <div class="rec-name">${displayName(oppEntry1,'Adv. '+(c1+1))}${tacticTagsHtml(oppEntry1)}</div>
               <button class="btn${!bestIsC0?'':' secondary'}" data-action="chooseOppAttacker" data-t="${tIdx}" data-opp="${c1}">Choisir cet adversaire</button>
             </div>
@@ -2092,6 +2179,11 @@ function applyLoadedState(loaded){
   state.pairing.forEach(p=>{
     if(p.myScore===undefined) p.myScore = null;
     if(p.oppScore===undefined) p.oppScore = null;
+  });
+  // Assure la présence de la matrice d'humeurs (smileys) sur chaque équipe adverse déjà
+  // sauvegardée/importée (anciens fichiers ne l'ayant jamais connue), à la bonne taille.
+  state.oppTeams.forEach(ot=>{
+    ot.matchupMood = resizeMoodMatrixTo(ot.matchupMood, TEAM_SIZE);
   });
   state.oppTeams = state.oppTeams.slice(0, MAX_OPP_TEAMS);
   if(typeof state.activeOppIdx !== 'number' || state.activeOppIdx>=state.oppTeams.length) state.activeOppIdx = 0;
