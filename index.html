@@ -273,6 +273,19 @@
   .opp-team-panel-head .btn.danger{width:auto; background:transparent; border:1px solid var(--red); color:var(--red-bright);}
   .opp-team-panel-head .btn.danger:hover{background:var(--red); color:var(--bone);}
   .opp-team-panel-head .btn.danger:disabled{opacity:.3; cursor:not-allowed; background:transparent; color:var(--bone-dim); border-color:var(--line);}
+  .opp-team-panel-head .btn{width:auto;}
+
+  /* PDF attaché à une équipe adverse : lien cliquable (roster/liste adverse scannée) */
+  .pdf-link-row{display:inline-flex; align-items:center; gap:6px;}
+  button.pdf-link{
+    font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--ember-bright);
+    border:1px solid var(--ember); padding:4px 8px; text-decoration:none; white-space:nowrap;
+    max-width:220px; overflow:hidden; text-overflow:ellipsis; display:inline-block;
+    background:transparent; cursor:pointer;
+  }
+  button.pdf-link:hover{background:var(--ember); color:var(--bone);}
+  .pdf-link-row .btn.danger{padding:4px 8px; font-size:11px;}
+  .live-opp-row .pdf-link-row{margin-left:4px;}
   .live-opp-row{display:flex; align-items:center; gap:10px; margin-bottom:16px; flex-wrap:wrap;}
   .live-opp-row label{font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--bone-dim); text-transform:uppercase; letter-spacing:.05em;}
 
@@ -514,6 +527,7 @@
     <h2 class="section-title">Matrice des matchups (moi × adversaire)</h2>
     <div class="hint">Note chaque confrontation de -3 (très mauvais matchup pour ta liste) à +3 (très favorable). 0 = équilibré. Cette note doit refléter la moyenne tous battleplans confondus. Choisis ci-dessous quelle équipe adverse tu configures.</div>
     <div class="opp-team-bar" id="oppTeamTabsMatchups"></div>
+    <div class="pdf-link-row" id="oppPdfLinkMatchups" style="margin:-6px 0 14px;"></div>
     <div class="matrix-wrap"><table class="matrix" id="matchupMatrix"></table></div>
   </div>
 
@@ -542,6 +556,7 @@
     <div class="live-opp-row">
       <label for="liveOppSelect">Adversaire de ce round :</label>
       <select id="liveOppSelect"></select>
+      <span class="pdf-link-row" id="oppPdfLinkLive"></span>
     </div>
     <div class="mode-row">
       <label>Stratégie de recommandation :</label>
@@ -774,7 +789,15 @@ function makeOppTeam(n){
     // Pairing en direct (et résultats réels associés) PROPRE à cette équipe adverse : ainsi,
     // changer d'adversaire dans l'onglet « Pairing en direct » ou dans l'onglet « Résultats »
     // ne fait plus jamais perdre la progression déjà saisie — on peut reprendre plus tard.
-    pairing: makePairingArray()
+    pairing: makePairingArray(),
+    // PDF attaché (roster/liste adverse scannée, règlement de table, etc.), encodé en
+    // base64 (data URL) et conservé uniquement dans la sauvegarde locale de cet appareil
+    // (localStorage) : il n'est PAS inclus dans le JSON exporté ni envoyé au cloud
+    // jsonbin (voir stateWithoutPdfData), pour éviter d'alourdir ces deux usages. Un lien
+    // cliquable (ouverture en visualisation dans le navigateur, pas en téléchargement)
+    // est affiché à côté du nom de l'équipe dans les onglets Matchups et Pairing en direct.
+    pdfName: '',
+    pdfData: ''
   };
 }
 
@@ -1070,8 +1093,12 @@ function renderOppTeamPanel(){
   el.innerHTML = `
     <div class="opp-team-panel-head">
       <input type="text" id="oppTeamNameInput" value="${ot.name||''}" placeholder="Nom de l'équipe adverse">
+      <button class="btn secondary" id="oppTeamPdfBtn" type="button">📎 ${ot.pdfData ? 'Changer le PDF' : 'Attacher un PDF'}</button>
+      <input type="file" id="oppTeamPdfInput" accept="application/pdf,.pdf" style="display:none;">
+      <span class="pdf-link-row" id="oppTeamPdfStatus"></span>
       <button class="btn danger" id="oppTeamDeleteBtn" ${state.oppTeams.length<=1?'disabled':''}>Supprimer cette équipe</button>
     </div>
+    <div class="hint" style="margin-top:-6px;">PDF facultatif (liste adverse scannée, règlement...) attaché à cette équipe : un lien cliquable apparaît ensuite à côté de son nom dans les onglets « Matchups » et « Pairing en direct », et l'ouvre en visualisation dans un nouvel onglet du navigateur. Reste uniquement sur cet appareil (non inclus dans l'export JSON ni envoyé au cloud) — un gros fichier peut malgré tout dépasser le quota de stockage local du navigateur.</div>
     <div class="roster-grid" id="oppRosterActive"></div>
   `;
   document.getElementById('oppTeamNameInput').addEventListener('input', e=>{
@@ -1083,7 +1110,115 @@ function renderOppTeamPanel(){
     renderResultsOppSelect();
   });
   document.getElementById('oppTeamDeleteBtn').addEventListener('click', ()=>removeOppTeam(idx));
+  document.getElementById('oppTeamPdfBtn').addEventListener('click', ()=>{
+    document.getElementById('oppTeamPdfInput').click();
+  });
+  document.getElementById('oppTeamPdfInput').addEventListener('change', e=>{
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if(!file) return;
+    attachOppTeamPdf(idx, file);
+  });
+  renderOppTeamPdfStatus(ot);
   renderRoster('oppRosterActive', ot.roster);
+}
+
+// Lecture du PDF choisi (encodé en base64/data URL) et rattachement à l'équipe adverse
+// idx. Avertit si le fichier est volumineux (risque de dépasser le quota localStorage du
+// navigateur, et à coup sûr la limite de 100 Ko du plan gratuit jsonbin.io pour la
+// synchro cloud), sans bloquer si l'utilisateur confirme vouloir continuer quand même.
+// Convertit une data URL base64 (ex: "data:application/pdf;base64,....") en Blob, pour
+// pouvoir l'ouvrir via une URL blob plutôt qu'une navigation directe vers une data URL :
+// les navigateurs récents (Chrome notamment) bloquent silencieusement (page blanche)
+// l'ouverture d'un nouvel onglet pointant directement sur une data URL.
+function dataUrlToBlob(dataUrl){
+  const commaIdx = dataUrl.indexOf(',');
+  const header = dataUrl.slice(0, commaIdx);
+  const base64 = dataUrl.slice(commaIdx+1);
+  const mimeMatch = /data:(.*?)(;base64)?$/.exec(header);
+  const mime = (mimeMatch && mimeMatch[1]) ? mimeMatch[1] : 'application/pdf';
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for(let i=0;i<binary.length;i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], {type: mime || 'application/pdf'});
+}
+// Ouvre le PDF attaché à une équipe adverse dans un nouvel onglet, en visualisation
+// (pas en téléchargement), via une URL blob temporaire.
+function openOppTeamPdf(ot){
+  if(!ot || !ot.pdfData) return;
+  try{
+    const blob = dataUrlToBlob(ot.pdfData);
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, '_blank', 'noopener');
+    if(!win){
+      alert('Le navigateur a bloqué l\'ouverture du PDF dans un nouvel onglet (bloqueur de pop-up ?). Autorise les pop-ups pour cet outil et réessaie.');
+    }
+    // Laisse le temps au nouvel onglet de charger le PDF avant de libérer la mémoire.
+    setTimeout(()=>URL.revokeObjectURL(url), 60000);
+  }catch(e){
+    alert('Impossible d\'ouvrir ce PDF (fichier corrompu ou illisible).');
+  }
+}
+function attachOppTeamPdf(idx, file){
+  const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  if(!isPdf){
+    alert('Merci de choisir un fichier PDF (.pdf).');
+    return;
+  }
+  const WARN_BYTES = 3*1024*1024; // ~3 Mo
+  if(file.size > WARN_BYTES){
+    const mo = (file.size/1024/1024).toFixed(1);
+    const ok = confirm(`Ce PDF fait environ ${mo} Mo. Il reste uniquement sur cet appareil (non exporté, non envoyé au cloud), mais un fichier aussi volumineux peut malgré tout dépasser le quota de stockage local de ce navigateur. Continuer quand même ?`);
+    if(!ok) return;
+  }
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    const ot = state.oppTeams[idx];
+    if(!ot) return;
+    ot.pdfData = reader.result;
+    ot.pdfName = file.name;
+    renderAll();
+  };
+  reader.onerror = ()=>{ alert('Impossible de lire ce fichier PDF.'); };
+  reader.readAsDataURL(file);
+}
+function removeOppTeamPdf(idx){
+  const ot = state.oppTeams[idx];
+  if(!ot) return;
+  ot.pdfData = '';
+  ot.pdfName = '';
+  renderAll();
+}
+// Affiche (ou vide) le bouton-lien + bouton de retrait pour le PDF attaché à une
+// équipe adverse, dans un élément conteneur donné. Construit via le DOM (et non
+// innerHTML) pour ne jamais avoir à échapper le nom de fichier saisi par l'utilisateur.
+// Utilise un <button> (et non un <a href="data:...">) car ouvrir directement une data
+// URL dans un nouvel onglet est bloqué par certains navigateurs (page blanche) ; le clic
+// passe donc par openOppTeamPdf, qui convertit en URL blob avant d'ouvrir l'onglet.
+function renderPdfLinkInto(containerId, ot, idx, withRemove){
+  const el = document.getElementById(containerId);
+  if(!el) return;
+  el.innerHTML = '';
+  if(!ot || !ot.pdfData) return;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'pdf-link';
+  btn.title = ot.pdfName || 'PDF';
+  btn.textContent = '📎 ' + (ot.pdfName || 'PDF');
+  btn.addEventListener('click', ()=>openOppTeamPdf(ot));
+  el.appendChild(btn);
+  if(withRemove){
+    const rm = document.createElement('button');
+    rm.type = 'button';
+    rm.className = 'btn danger';
+    rm.textContent = '✕';
+    rm.title = 'Retirer le PDF attaché';
+    rm.addEventListener('click', ()=>removeOppTeamPdf(idx));
+    el.appendChild(rm);
+  }
+}
+function renderOppTeamPdfStatus(ot){
+  renderPdfLinkInto('oppTeamPdfStatus', ot, state.activeOppIdx, true);
 }
 function renderLiveOppSelect(){
   const sel = document.getElementById('liveOppSelect');
@@ -1665,6 +1800,7 @@ async function refreshFactionPowerViaAI(){
 function renderMatchupMatrix(){
   renderOppTeamTabsInto('oppTeamTabsMatchups');
   const ot = activeOppTeam();
+  renderPdfLinkInto('oppPdfLinkMatchups', ot, state.activeOppIdx, false);
   renderMatrix('matchupMatrix', myLabelsWithFaction(), oppLabelsWithFaction(ot.roster), ot.matchup, -3, 3, renderLive, ot.matchupMood, renderLive);
 }
 function renderMyFitMatrix(){
@@ -1799,6 +1935,7 @@ function tacticTagsHtml(entry){
 
 function renderLive(){
   renderBattleLine();
+  renderPdfLinkInto('oppPdfLinkLive', liveOppTeam(), state.liveOppIdx, false);
   const rec = computeRecommendation();
   const grid = document.getElementById('tablesGrid');
   grid.innerHTML='';
@@ -2164,8 +2301,18 @@ document.getElementById('resetResults').addEventListener('click', ()=>{
 });
 
 /* ---------- Export / Import ---------- */
+// Les PDF attachés aux équipes adverses ne sont volontairement PAS inclus dans le JSON
+// exporté (ni dans l'envoi cloud jsonbin, cf. plus bas) : ils peuvent être volumineux,
+// et cette config JSON est faite pour être partagée/sauvegardée en dehors de l'appareil.
+// Le PDF reste attaché normalement dans la sauvegarde locale automatique du navigateur ;
+// seul le nom du fichier est conservé ici, à titre indicatif.
+function stateWithoutPdfData(){
+  const clone = JSON.parse(JSON.stringify(state));
+  if(clone.oppTeams) clone.oppTeams.forEach(ot=>{ ot.pdfData = ''; });
+  return clone;
+}
 document.getElementById('exportBtn').addEventListener('click', ()=>{
-  const blob = new Blob([JSON.stringify(state,null,2)], {type:'application/json'});
+  const blob = new Blob([JSON.stringify(stateWithoutPdfData(),null,2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href=url; a.download='pairing-config-aos.json'; a.click();
@@ -2194,6 +2341,11 @@ document.getElementById('importFile').addEventListener('change', e=>{
 // en comblant tout champ manquant/corrompu par une valeur par défaut sûre, pour ne
 // jamais planter l'appli sur un fichier ou un stockage partiel/ancien.
 function applyLoadedState(loaded){
+  // Les PDF attachés ne sont jamais inclus dans un JSON exporté ni dans l'état reçu du
+  // cloud (voir stateWithoutPdfData) : on garde une référence à l'état précédent pour
+  // pouvoir restaurer, pour chaque équipe adverse à la même position, le PDF qui était
+  // déjà attaché localement sur cet appareil, au lieu de le perdre à chaque import/sync.
+  const previousOppTeams = (state && state.oppTeams) ? state.oppTeams : [];
   state = loaded;
   TEAM_SIZE = (state.myTeam && state.myTeam.length) || 6;
   if(!state.oppTeams || !state.oppTeams.length) state.oppTeams = [makeOppTeam(1)];
@@ -2212,6 +2364,12 @@ function applyLoadedState(loaded){
   // bonne taille.
   state.oppTeams.forEach((ot,idx)=>{
     ot.matchupMood = resizeMoodMatrixTo(ot.matchupMood, TEAM_SIZE);
+    if(ot.pdfName===undefined) ot.pdfName = '';
+    if(ot.pdfData===undefined) ot.pdfData = '';
+    if(!ot.pdfData && previousOppTeams[idx] && previousOppTeams[idx].pdfData){
+      ot.pdfData = previousOppTeams[idx].pdfData;
+      ot.pdfName = previousOppTeams[idx].pdfName || ot.pdfName;
+    }
     if(!ot.pairing || !ot.pairing.length) ot.pairing = makePairingArray();
     if(legacyPairing && legacyPairing.length && idx===(typeof state.liveOppIdx==='number'?state.liveOppIdx:0)){
       ot.pairing = resizeArrayTo(legacyPairing, TEAM_SIZE, ()=>({myList:null, oppList:null, myScore:null, oppScore:null, oppCandidates:[null,null]}));
@@ -2640,7 +2798,7 @@ async function cloudPush(showBusyMessage){
     const resp = await fetch(`${JSONBIN_ROOT}/b/${encodeURIComponent(binId)}`, {
       method:'PUT',
       headers:{ 'Content-Type':'application/json', 'X-Master-Key': apiKey, 'X-Bin-Versioning':'false' },
-      body: JSON.stringify(state)
+      body: JSON.stringify(stateWithoutPdfData())
     });
     if(!resp.ok){
       if(resp.status===401 || resp.status===403) setCloudIndicator('Clé API cloud refusée par jsonbin.io.', true);
