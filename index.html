@@ -489,9 +489,9 @@
     <details class="advanced" open>
       <summary>Avancé — suggérer les matchups à partir de résultats de tournoi (faction vs faction)</summary>
       <div class="inner">
-        <div class="hint">Le tableau ci-dessous est pré-rempli à partir d'une synthèse de win rates de tournois publiés courant juillet 2026, saison Aqshy (à ajuster à ta guise, ou à écraser avec tes propres données). Échelle -3 (grosse défavorable) à +3 (grosse favorable). Les 27 factions du GHB apparaissent toutes ci-dessous, en lignes (ma faction) et en colonnes (faction adverse), que tu les aies déjà saisies dans un roster ou non. Le filtre ci-dessous ne réduit que les colonnes (faction adverse) : coche une ou plusieurs factions pour voir uniquement les matchups de toutes mes factions contre celles-ci ; les lignes restent toujours toutes affichées. Aucune case cochée = toutes les factions affichées.</div>
+        <div class="hint">Le tableau ci-dessous est pré-rempli à partir d'une synthèse de win rates de tournois publiés courant juillet 2026, saison Aqshy (à ajuster à ta guise, ou à écraser avec tes propres données). Échelle -3 (grosse défavorable) à +3 (grosse favorable). Les 27 factions du GHB apparaissent toutes ci-dessous, en lignes (ma faction) et en colonnes (faction adverse), que tu les aies déjà saisies dans un roster ou non. Le filtre ci-dessous ne réduit que les lignes (ma faction) : coche une ou plusieurs factions pour voir uniquement les matchups de cette/ces faction(s) contre toutes les factions adverses ; les colonnes restent toujours toutes affichées. Aucune case cochée = toutes les factions affichées.</div>
         <div class="toolbar" style="align-items:flex-start;">
-          <input type="text" id="factionMetaFilterInput" placeholder="Filtrer les colonnes par nom de faction..." style="flex:1;min-width:220px;">
+          <input type="text" id="factionMetaFilterInput" placeholder="Filtrer les lignes par nom de faction..." style="flex:1;min-width:220px;">
           <button class="btn secondary" id="factionMetaFilterClearBtn">Réinitialiser le filtre</button>
         </div>
         <div id="factionMetaFilterCheckboxes" style="display:flex;flex-wrap:wrap;gap:6px 16px;max-height:180px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px;"></div>
@@ -1562,13 +1562,14 @@ function renderFactionPowerTable(){
   });
 }
 
-// Filtre d'affichage du tableau de suggestion tournoi : ne réduit QUE les colonnes
-// (faction adverse) — les lignes (mes factions) restent toujours toutes affichées.
+// Filtre d'affichage du tableau de suggestion tournoi : ne réduit QUE les lignes
+// (ma faction, affichées verticalement le long du bord gauche) — les colonnes (faction
+// adverse, affichées horizontalement en haut) restent toujours toutes affichées.
 // Cocher une ou plusieurs factions (ou taper un fragment dans le champ de recherche,
-// si aucune case n'est cochée) affiche donc "toutes mes factions vs cette/ces
-// faction(s) adverse(s)". N'affecte que l'affichage, jamais les données stockées
-// dans state.factionMeta.
-function filteredFactionMetaColumns(){
+// si aucune case n'est cochée) affiche donc "cette/ces faction(s) contre toutes les
+// factions adverses". N'affecte que l'affichage, jamais les données stockées dans
+// state.factionMeta.
+function filteredFactionMetaRows(){
   const input = document.getElementById('factionMetaFilterInput');
   const container = document.getElementById('factionMetaFilterCheckboxes');
   const search = input ? input.value.trim().toLowerCase() : '';
@@ -1602,9 +1603,10 @@ function initFactionMetaFilter(){
 }
 
 function renderFactionMetaMatrix(){
-  // Les lignes (mes factions) affichent toujours les 27 factions du GHB. Seules les
-  // colonnes (faction adverse) sont réduites par le filtre — voir filteredFactionMetaColumns.
-  const myF = FACTION_ORDER, oppF = filteredFactionMetaColumns();
+  // Les colonnes (faction adverse, en haut) affichent toujours les 27 factions du GHB.
+  // Seules les lignes (ma faction, à gauche) sont réduites par le filtre — voir
+  // filteredFactionMetaRows.
+  const myF = filteredFactionMetaRows(), oppF = FACTION_ORDER;
   const wrap = document.getElementById('factionMetaWrap');
   const emptyMsg = document.getElementById('factionMetaEmpty');
   const table = document.getElementById('factionMetaMatrix');
@@ -1612,7 +1614,7 @@ function renderFactionMetaMatrix(){
   if(!table) return;
   if(statusEl && state.factionMetaUpdatedLabel) statusEl.textContent = state.factionMetaUpdatedLabel + '.';
   table.innerHTML='';
-  if(oppF.length===0){
+  if(myF.length===0){
     if(emptyMsg){ emptyMsg.textContent = 'Aucune faction ne correspond au filtre.'; emptyMsg.style.display='block'; }
     if(wrap) wrap.style.display='none';
     return;
