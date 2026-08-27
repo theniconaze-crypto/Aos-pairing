@@ -566,7 +566,12 @@
 
   <div class="panel" id="panel-results">
     <h2 class="section-title">Résultats réels — pairing en cours</h2>
-    <div class="hint">Renseigne ici le score réel de chaque table une fois la partie jouée, à partir du pairing verrouillé dans l'onglet « 4. Pairing en direct » (joueur + adversaire confirmés). Le score total de chaque équipe s'incrémente au fur et à mesure que tu remplis les tables.</div>
+    <div class="hint">Renseigne ici le score réel de chaque table une fois la partie jouée, à partir du pairing verrouillé dans l'onglet « 4. Pairing en direct » (joueur + adversaire confirmés). Le score total de chaque équipe s'incrémente au fur et à mesure que tu remplis les tables. Choisis ci-dessous l'équipe adverse concernée : chaque équipe garde ses propres résultats, tu peux donc passer de l'une à l'autre sans rien perdre.</div>
+
+    <div class="live-opp-row">
+      <label for="resultsOppSelect">Équipe adverse :</label>
+      <select id="resultsOppSelect"></select>
+    </div>
 
     <div class="totals">
       <div class="stat"><span class="v" id="resMyTotal">0</span><span class="l">Score total — mon équipe</span></div>
@@ -754,6 +759,9 @@ function buildDefaultTacticMatrix(){
   return m;
 }
 
+function makePairingArray(){
+  return Array.from({length:TEAM_SIZE}, ()=>({myList:null, oppList:null, myScore:null, oppScore:null, oppCandidates:[null,null]}));
+}
 function makeOppTeam(n){
   return {
     name: 'Équipe adverse '+n,
@@ -762,7 +770,11 @@ function makeOppTeam(n){
     // Smiley content/mécontent facultatif par case, purement visuel (n'entre jamais dans
     // l'algorithme de score) : null = aucun smiley, 'happy' ou 'sad'.
     matchupMood: Array.from({length:TEAM_SIZE}, ()=>Array(TEAM_SIZE).fill(null)),
-    oppFit: Array.from({length:TEAM_SIZE}, ()=>Array(TEAM_SIZE).fill(0))
+    oppFit: Array.from({length:TEAM_SIZE}, ()=>Array(TEAM_SIZE).fill(0)),
+    // Pairing en direct (et résultats réels associés) PROPRE à cette équipe adverse : ainsi,
+    // changer d'adversaire dans l'onglet « Pairing en direct » ou dans l'onglet « Résultats »
+    // ne fait plus jamais perdre la progression déjà saisie — on peut reprendre plus tard.
+    pairing: makePairingArray()
   };
 }
 
@@ -771,13 +783,13 @@ let state = {
   oppTeams: [ makeOppTeam(1) ],
   activeOppIdx: 0,
   liveOppIdx: 0,
+  resultsOppIdx: 0,
   tables: Array.from({length:TEAM_SIZE}, (_,i)=>({name:'', battleplan:''})),
   myFit: Array.from({length:TEAM_SIZE}, ()=>Array(TEAM_SIZE).fill(0)),
   tacticMatrix: buildDefaultTacticMatrix(),
   factionMeta: buildDefaultFactionMeta(),
   factionMetaUpdatedLabel: 'Estimation de départ (' + FACTION_POWER_SNAPSHOT_DATE + ')',
   factionPower: Object.assign({}, FACTION_POWER),
-  pairing: Array.from({length:TEAM_SIZE}, ()=>({myList:null, oppList:null, myScore:null, oppScore:null, oppCandidates:[null,null]})),
   mode: 'expected',
   // Doublons max autorisés pour une même Battle Tactics card dans mon équipe lors de la
   // génération aléatoire (règle de tournoi par équipe façon WTC/ETC/AOSFF). Réglable dans
@@ -787,6 +799,10 @@ let state = {
 
 function activeOppTeam(){ return state.oppTeams[state.activeOppIdx]; }
 function liveOppTeam(){ return state.oppTeams[state.liveOppIdx]; }
+function resultsOppTeam(){ return state.oppTeams[state.resultsOppIdx]; }
+// Pairing en direct de l'équipe adverse actuellement sélectionnée dans l'onglet « 4. Pairing
+// en direct » (state.liveOppIdx). Chaque équipe adverse porte désormais son propre pairing.
+function currentPairing(){ return liveOppTeam().pairing; }
 
 function resizeArrayTo(arr, newSize, factory){
   const copy = arr.slice(0, newSize);
@@ -841,8 +857,12 @@ function setTeamSize(newSize){
     ot.matchup = resizeMatrixTo(ot.matchup, TEAM_SIZE);
     ot.matchupMood = resizeMoodMatrixTo(ot.matchupMood, TEAM_SIZE);
     ot.oppFit = resizeMatrixTo(ot.oppFit, TEAM_SIZE);
+    ot.pairing = resizeArrayTo(ot.pairing, TEAM_SIZE, ()=>({myList:null, oppList:null, myScore:null, oppScore:null, oppCandidates:[null,null]}));
+    ot.pairing.forEach(p=>{
+      if(p.myList!==null && p.myList>=TEAM_SIZE) p.myList=null;
+      if(p.oppList!==null && p.oppList>=TEAM_SIZE) p.oppList=null;
+    });
   });
-  state.pairing = resizeArrayTo(state.pairing, TEAM_SIZE, ()=>({myList:null, oppList:null, myScore:null, oppScore:null, oppCandidates:[null,null]}));
   // Si le plafond de doublons actuel est devenu insuffisant pour ce nouveau format
   // d'équipe (ex: passage de 6 à 8 joueurs), on le relève au minimum jouable ; s'il était
   // déjà plus permissif que ce minimum, on ne touche pas au réglage de l'utilisateur.
@@ -850,10 +870,6 @@ function setTeamSize(newSize){
   if(!state.maxTacticDuplicates || state.maxTacticDuplicates < minFeasible){
     state.maxTacticDuplicates = minFeasible;
   }
-  state.pairing.forEach(p=>{
-    if(p.myList!==null && p.myList>=TEAM_SIZE) p.myList=null;
-    if(p.oppList!==null && p.oppList>=TEAM_SIZE) p.oppList=null;
-  });
   document.getElementById('formatSub').textContent = `Team Event · Format ${TEAM_SIZE}v${TEAM_SIZE} · General's Handbook 2026-27 (Aqshy)`;
   renderAll();
 }
@@ -871,10 +887,8 @@ function removeOppTeam(idx){
   if(!ok) return;
   state.oppTeams.splice(idx,1);
   if(state.activeOppIdx >= state.oppTeams.length) state.activeOppIdx = state.oppTeams.length-1;
-  if(state.liveOppIdx >= state.oppTeams.length){
-    state.liveOppIdx = state.oppTeams.length-1;
-    state.pairing = Array.from({length:TEAM_SIZE}, ()=>({myList:null, oppList:null, myScore:null, oppScore:null, oppCandidates:[null,null]}));
-  }
+  if(state.liveOppIdx >= state.oppTeams.length) state.liveOppIdx = state.oppTeams.length-1;
+  if(state.resultsOppIdx >= state.oppTeams.length) state.resultsOppIdx = state.oppTeams.length-1;
   renderAll();
 }
 
@@ -1066,6 +1080,7 @@ function renderOppTeamPanel(){
     renderOppTeamTabsInto('oppTeamTabsMatchups');
     renderOppTeamTabsInto('oppTeamTabsMissions');
     renderLiveOppSelect();
+    renderResultsOppSelect();
   });
   document.getElementById('oppTeamDeleteBtn').addEventListener('click', ()=>removeOppTeam(idx));
   renderRoster('oppRosterActive', ot.roster);
@@ -1074,6 +1089,17 @@ function renderLiveOppSelect(){
   const sel = document.getElementById('liveOppSelect');
   if(!sel) return;
   const prev = state.liveOppIdx;
+  sel.innerHTML = state.oppTeams.map((ot,idx)=>
+    `<option value="${idx}" ${idx===prev?'selected':''}>${ot.name && ot.name.trim() ? ot.name : ('Équipe adverse '+(idx+1))}</option>`
+  ).join('');
+}
+// Sélecteur d'équipe adverse dédié à l'onglet « 5. Résultats Réels Pairing » : indépendant
+// du sélecteur de l'onglet « 4. Pairing en direct », pour pouvoir saisir les résultats
+// d'une équipe tout en continuant à pairer en direct contre une autre.
+function renderResultsOppSelect(){
+  const sel = document.getElementById('resultsOppSelect');
+  if(!sel) return;
+  const prev = state.resultsOppIdx;
   sel.innerHTML = state.oppTeams.map((ot,idx)=>
     `<option value="${idx}" ${idx===prev?'selected':''}>${ot.name && ot.name.trim() ? ot.name : ('Équipe adverse '+(idx+1))}</option>`
   ).join('');
@@ -1654,8 +1680,8 @@ function renderTacticMatrix(){
 }
 
 /* ---------- Live pairing ---------- */
-function usedMy(){ return new Set(state.pairing.map(p=>p.myList).filter(x=>x!==null)); }
-function usedOpp(){ return new Set(state.pairing.map(p=>p.oppList).filter(x=>x!==null)); }
+function usedMy(){ return new Set(currentPairing().map(p=>p.myList).filter(x=>x!==null)); }
+function usedOpp(){ return new Set(currentPairing().map(p=>p.oppList).filter(x=>x!==null)); }
 
 // Quand l'adversaire n'est pas encore révélé sur une table, mais qu'il a déjà annoncé
 // les 2 attaquants parmi lesquels il choisira (oppCandidates), l'estimation ne doit plus
@@ -1665,7 +1691,7 @@ function usedOpp(){ return new Set(state.pairing.map(p=>p.oppList).filter(x=>x!=
 // suite dès qu'on saisit les 2 propositions adverses, au lieu de continuer à moyenner
 // sur des adversaires qui ne peuvent de toute façon plus tomber sur cette table.
 function oppPoolForTable(tIdx, remainingOpp){
-  const cand = state.pairing[tIdx] && state.pairing[tIdx].oppCandidates;
+  const cand = currentPairing()[tIdx] && currentPairing()[tIdx].oppCandidates;
   if(cand && cand[0]!==null && cand[0]!==undefined && cand[1]!==null && cand[1]!==undefined){
     const narrowed = [cand[0], cand[1]].filter(j=>remainingOpp.includes(j));
     if(narrowed.length>0) return narrowed;
@@ -1677,7 +1703,7 @@ function computeRecommendation(){
   const myUsed = usedMy(), oppUsed = usedOpp();
   const remainingMy = [...Array(TEAM_SIZE).keys()].filter(i=>!myUsed.has(i));
   const remainingOpp = [...Array(TEAM_SIZE).keys()].filter(j=>!oppUsed.has(j));
-  const openTableIdx = state.pairing.map((p,t)=>p.myList===null?t:null).filter(t=>t!==null);
+  const openTableIdx = currentPairing().map((p,t)=>p.myList===null?t:null).filter(t=>t!==null);
 
   // Un matchup déjà révélé (adversaire connu sur cette table) est une valeur CERTAINE.
   // Une table encore inconnue n'est qu'une estimation (moyenne/pire cas parmi les listes
@@ -1686,14 +1712,14 @@ function computeRecommendation(){
   // tables inconnues vienne "voler" le meilleur joueur disponible pour un matchup déjà
   // révélé : on résout donc d'abord l'affectation sur les tables connues, puis on
   // répartit les joueurs restants sur les tables encore incertaines.
-  const knownTableIdx = openTableIdx.filter(t => state.pairing[t].oppList !== null);
-  const unknownTableIdx = openTableIdx.filter(t => state.pairing[t].oppList === null);
+  const knownTableIdx = openTableIdx.filter(t => currentPairing()[t].oppList !== null);
+  const unknownTableIdx = openTableIdx.filter(t => currentPairing()[t].oppList === null);
 
   const recByTable = {};
   let total = 0;
 
   // Phase 1 : tables à adversaire connu — score exact, priorité absolue.
-  const knownValueFn = (i, t) => calcScore(i, state.pairing[t].oppList, t);
+  const knownValueFn = (i, t) => calcScore(i, currentPairing()[t].oppList, t);
   const knownResult = optimalAssignment(remainingMy, knownTableIdx, knownValueFn);
   const assignedInPhase1 = new Set();
   knownResult.assign.forEach(a=>{
@@ -1729,9 +1755,9 @@ function computeRecommendation(){
 // dans computeRecommendation). Sert à proposer les 2 meilleurs choix côte à côte dans
 // l'onglet Pairing en direct, plutôt qu'une seule recommandation.
 function rankCandidatesForTable(tIdx, remainingMy, remainingOpp){
-  const known = state.pairing[tIdx].oppList !== null;
+  const known = currentPairing()[tIdx].oppList !== null;
   const valueFn = known
-    ? (i)=>calcScore(i, state.pairing[tIdx].oppList, tIdx)
+    ? (i)=>calcScore(i, currentPairing()[tIdx].oppList, tIdx)
     : (i)=>{
         const pool = oppPoolForTable(tIdx, remainingOpp);
         if(pool.length===0) return 0;
@@ -1748,7 +1774,7 @@ function rankCandidatesForTable(tIdx, remainingMy, remainingOpp){
 
 function lockedTotal(){
   let total=0;
-  state.pairing.forEach((p,t)=>{
+  currentPairing().forEach((p,t)=>{
     if(p.myList!==null && p.oppList!==null) total += calcScore(p.myList, p.oppList, t);
   });
   return total;
@@ -1757,7 +1783,7 @@ function lockedTotal(){
 function renderBattleLine(){
   const el = document.getElementById('battleLine');
   el.innerHTML='';
-  state.pairing.forEach(p=>{
+  currentPairing().forEach(p=>{
     const seg=document.createElement('div');
     seg.className='seg' + (p.myList!==null && p.oppList!==null ? ' locked' : (p.myList!==null||p.oppList!==null ? ' partial':''));
     el.appendChild(seg);
@@ -1780,7 +1806,7 @@ function renderLive(){
   const myUsedArr = usedMy(), oppUsedArr = usedOpp();
 
   state.tables.forEach((t,tIdx)=>{
-    const p = state.pairing[tIdx];
+    const p = currentPairing()[tIdx];
     const card = document.createElement('div');
     card.className = 'table-card' + (p.myList!==null && p.oppList!==null ? ' locked' : (p.myList!==null||p.oppList!==null?' partial':''));
 
@@ -1888,7 +1914,7 @@ function renderLive(){
     btn.addEventListener('click', e=>{
       const tIdx = +e.target.dataset.t;
       const sel = grid.querySelector(`.mySelect[data-t="${tIdx}"]`);
-      state.pairing[tIdx].myList = +sel.value;
+      currentPairing()[tIdx].myList = +sel.value;
       renderLive(); updateTotals(); renderResults();
     });
   });
@@ -1896,7 +1922,7 @@ function renderLive(){
     btn.addEventListener('click', e=>{
       const tIdx = +e.currentTarget.dataset.t;
       const myIdx = +e.currentTarget.dataset.my;
-      state.pairing[tIdx].myList = myIdx;
+      currentPairing()[tIdx].myList = myIdx;
       renderLive(); updateTotals(); renderResults();
     });
   });
@@ -1904,8 +1930,8 @@ function renderLive(){
     btn.addEventListener('click', e=>{
       const tIdx = +e.target.dataset.t;
       const sel = grid.querySelector(`.oppSelect[data-t="${tIdx}"]`);
-      state.pairing[tIdx].oppList = +sel.value;
-      state.pairing[tIdx].oppCandidates = [null,null];
+      currentPairing()[tIdx].oppList = +sel.value;
+      currentPairing()[tIdx].oppCandidates = [null,null];
       renderLive(); updateTotals(); renderResults();
     });
   });
@@ -1914,8 +1940,8 @@ function renderLive(){
       const tIdx = +e.target.dataset.t;
       const slot = +e.target.dataset.slot;
       const val = e.target.value;
-      if(!state.pairing[tIdx].oppCandidates) state.pairing[tIdx].oppCandidates = [null,null];
-      state.pairing[tIdx].oppCandidates[slot] = val===''? null : +val;
+      if(!currentPairing()[tIdx].oppCandidates) currentPairing()[tIdx].oppCandidates = [null,null];
+      currentPairing()[tIdx].oppCandidates[slot] = val===''? null : +val;
       renderLive(); updateTotals(); renderResults();
     });
   });
@@ -1923,22 +1949,22 @@ function renderLive(){
     btn.addEventListener('click', e=>{
       const tIdx = +e.currentTarget.dataset.t;
       const oppIdx = +e.currentTarget.dataset.opp;
-      state.pairing[tIdx].oppList = oppIdx;
-      state.pairing[tIdx].oppCandidates = [null,null];
+      currentPairing()[tIdx].oppList = oppIdx;
+      currentPairing()[tIdx].oppCandidates = [null,null];
       renderLive(); updateTotals(); renderResults();
     });
   });
   grid.querySelectorAll('[data-action="clearMy"]').forEach(btn=>{
     btn.addEventListener('click', e=>{
-      state.pairing[+e.target.dataset.t].myList = null;
+      currentPairing()[+e.target.dataset.t].myList = null;
       renderLive(); updateTotals(); renderResults();
     });
   });
   grid.querySelectorAll('[data-action="clearOpp"]').forEach(btn=>{
     btn.addEventListener('click', e=>{
       const tIdx = +e.target.dataset.t;
-      state.pairing[tIdx].oppList = null;
-      state.pairing[tIdx].oppCandidates = [null,null];
+      currentPairing()[tIdx].oppList = null;
+      currentPairing()[tIdx].oppCandidates = [null,null];
       renderLive(); updateTotals(); renderResults();
     });
   });
@@ -1949,7 +1975,7 @@ function renderLive(){
 function updateTotals(recParam){
   const rec = recParam || computeRecommendation();
   const locked = lockedTotal();
-  const openCount = state.pairing.filter(p=>p.myList===null).length;
+  const openCount = currentPairing().filter(p=>p.myList===null).length;
   document.getElementById('totLocked').textContent = (locked>=0?'+':'')+locked.toFixed(1);
   document.getElementById('totRec').textContent = (rec.total>=0?'+':'')+rec.total.toFixed(1);
   document.getElementById('totGrand').textContent = (locked+rec.total>=0?'+':'')+(locked+rec.total).toFixed(1);
@@ -1964,18 +1990,18 @@ function renderResults(){
   if(!grid) return;
   grid.innerHTML = '';
 
-  const lockedTables = state.pairing
+  const lockedTables = resultsOppTeam().pairing
     .map((p,t)=>({p,t}))
     .filter(({p})=>p.myList!==null && p.oppList!==null);
 
   if(lockedTables.length===0){
-    grid.innerHTML = '<div class="hint">Aucune table verrouillée pour l\'instant (joueur + adversaire confirmés) dans l\'onglet « 4. Pairing en direct ». Complète au moins une table là-bas pour pouvoir saisir un score ici.</div>';
+    grid.innerHTML = '<div class="hint">Aucune table verrouillée pour l\'instant (joueur + adversaire confirmés) dans l\'onglet « 4. Pairing en direct » pour cette équipe adverse. Complète au moins une table là-bas (en sélectionnant la même équipe) pour pouvoir saisir un score ici.</div>';
   }
 
   lockedTables.forEach(({p,t})=>{
     const tbl = state.tables[t];
     const myEntry = state.myTeam[p.myList];
-    const oppEntry = liveOppTeam().roster[p.oppList];
+    const oppEntry = resultsOppTeam().roster[p.oppList];
     const tableName = tbl.name && tbl.name.trim() ? tbl.name : 'Table '+(t+1);
     const battleplanName = tbl.battleplan && tbl.battleplan.trim() ? tbl.battleplan : 'Battleplan à définir';
     const card = document.createElement('div');
@@ -2000,7 +2026,7 @@ function renderResults(){
     inp.addEventListener('input', e=>{
       const t = +e.target.dataset.t;
       const v = e.target.value;
-      state.pairing[t].myScore = v==='' ? null : Math.max(0, parseInt(v,10)||0);
+      resultsOppTeam().pairing[t].myScore = v==='' ? null : Math.max(0, parseInt(v,10)||0);
       updateResultsTotals();
     });
   });
@@ -2008,7 +2034,7 @@ function renderResults(){
     inp.addEventListener('input', e=>{
       const t = +e.target.dataset.t;
       const v = e.target.value;
-      state.pairing[t].oppScore = v==='' ? null : Math.max(0, parseInt(v,10)||0);
+      resultsOppTeam().pairing[t].oppScore = v==='' ? null : Math.max(0, parseInt(v,10)||0);
       updateResultsTotals();
     });
   });
@@ -2024,7 +2050,7 @@ function updateResultsTotals(){
   const filledEl = document.getElementById('resFilled');
   if(!myTotalEl || !oppTotalEl || !filledEl) return;
   let myTotal = 0, oppTotal = 0, filled = 0;
-  state.pairing.forEach(p=>{
+  resultsOppTeam().pairing.forEach(p=>{
     if(p.myScore!==null && p.myScore!==undefined) myTotal += p.myScore;
     if(p.oppScore!==null && p.oppScore!==undefined) oppTotal += p.oppScore;
     if(p.myScore!==null && p.myScore!==undefined && p.oppScore!==null && p.oppScore!==undefined) filled++;
@@ -2110,30 +2136,30 @@ document.getElementById('modeSelect').addEventListener('change', e=>{
 document.getElementById('liveOppSelect').addEventListener('change', e=>{
   const newIdx = parseInt(e.target.value,10);
   if(newIdx === state.liveOppIdx) return;
-  const hasProgress = state.pairing.some(p=>p.myList!==null || p.oppList!==null);
-  if(hasProgress){
-    const ok = confirm('Changer d\'adversaire pour ce round va réinitialiser le pairing en cours. Continuer ?');
-    if(!ok){
-      renderLiveOppSelect();
-      return;
-    }
-  }
+  // Chaque équipe adverse a désormais son propre pairing : changer d'adversaire ici se
+  // contente de changer d'onglet de pairing (le pairing déjà réalisé pour l'équipe
+  // précédente reste intact et pourra être repris plus tard).
   state.liveOppIdx = newIdx;
-  state.pairing = Array.from({length:TEAM_SIZE}, ()=>({myList:null, oppList:null, myScore:null, oppScore:null, oppCandidates:[null,null]}));
+  renderLive();
+});
+
+document.getElementById('resetPairing').addEventListener('click', ()=>{
+  const ok = confirm(`Réinitialiser le pairing en cours pour « ${liveOppTeam().name || 'cette équipe adverse'} » (ouvre une nouvelle trame vierge pour cette équipe) ? Le pairing des autres équipes adverses n'est pas touché.`);
+  if(!ok) return;
+  liveOppTeam().pairing = makePairingArray();
   renderLive();
   renderResults();
 });
 
-document.getElementById('resetPairing').addEventListener('click', ()=>{
-  state.pairing = Array.from({length:TEAM_SIZE}, ()=>({myList:null, oppList:null, myScore:null, oppScore:null, oppCandidates:[null,null]}));
-  renderLive();
+document.getElementById('resultsOppSelect').addEventListener('change', e=>{
+  state.resultsOppIdx = parseInt(e.target.value,10);
   renderResults();
 });
 
 document.getElementById('resetResults').addEventListener('click', ()=>{
-  const ok = confirm('Effacer tous les scores réels saisis pour ce round (le pairing lui-même — joueurs et adversaires — n\'est pas touché) ?');
+  const ok = confirm(`Effacer tous les scores réels saisis pour « ${resultsOppTeam().name || 'cette équipe adverse'} » (le pairing lui-même — joueurs et adversaires — n'est pas touché) ?`);
   if(!ok) return;
-  state.pairing.forEach(p=>{ p.myScore = null; p.oppScore = null; });
+  resultsOppTeam().pairing.forEach(p=>{ p.myScore = null; p.oppScore = null; });
   renderResults();
 });
 
@@ -2175,19 +2201,31 @@ function applyLoadedState(loaded){
   if(!state.factionMetaUpdatedLabel) state.factionMetaUpdatedLabel = 'Estimation de départ (' + FACTION_POWER_SNAPSHOT_DATE + ')';
   if(!state.factionPower || Object.keys(state.factionPower).length===0) state.factionPower = Object.assign({}, FACTION_POWER);
   if(!state.tacticMatrix || !state.tacticMatrix.length) state.tacticMatrix = buildDefaultTacticMatrix();
-  if(!state.pairing || !state.pairing.length) state.pairing = Array.from({length:TEAM_SIZE}, ()=>({myList:null, oppList:null, myScore:null, oppScore:null, oppCandidates:[null,null]}));
-  state.pairing.forEach(p=>{
-    if(p.myScore===undefined) p.myScore = null;
-    if(p.oppScore===undefined) p.oppScore = null;
-  });
-  // Assure la présence de la matrice d'humeurs (smileys) sur chaque équipe adverse déjà
-  // sauvegardée/importée (anciens fichiers ne l'ayant jamais connue), à la bonne taille.
-  state.oppTeams.forEach(ot=>{
+  // Migration depuis l'ancien format (un seul pairing global, partagé entre toutes les
+  // équipes adverses et écrasé à chaque changement d'adversaire) : le pairing existant
+  // est rattaché à l'équipe adverse qui était "en direct" au moment de la sauvegarde,
+  // et chaque équipe adverse reçoit désormais son propre pairing indépendant.
+  const legacyPairing = state.pairing;
+  delete state.pairing;
+  // Assure la présence de la matrice d'humeurs (smileys) et du pairing sur chaque équipe
+  // adverse déjà sauvegardée/importée (anciens fichiers ne les ayant jamais connus), à la
+  // bonne taille.
+  state.oppTeams.forEach((ot,idx)=>{
     ot.matchupMood = resizeMoodMatrixTo(ot.matchupMood, TEAM_SIZE);
+    if(!ot.pairing || !ot.pairing.length) ot.pairing = makePairingArray();
+    if(legacyPairing && legacyPairing.length && idx===(typeof state.liveOppIdx==='number'?state.liveOppIdx:0)){
+      ot.pairing = resizeArrayTo(legacyPairing, TEAM_SIZE, ()=>({myList:null, oppList:null, myScore:null, oppScore:null, oppCandidates:[null,null]}));
+    }
+    ot.pairing.forEach(p=>{
+      if(p.myScore===undefined) p.myScore = null;
+      if(p.oppScore===undefined) p.oppScore = null;
+      if(p.oppCandidates===undefined) p.oppCandidates = [null,null];
+    });
   });
   state.oppTeams = state.oppTeams.slice(0, MAX_OPP_TEAMS);
   if(typeof state.activeOppIdx !== 'number' || state.activeOppIdx>=state.oppTeams.length) state.activeOppIdx = 0;
   if(typeof state.liveOppIdx !== 'number' || state.liveOppIdx>=state.oppTeams.length) state.liveOppIdx = 0;
+  if(typeof state.resultsOppIdx !== 'number' || state.resultsOppIdx>=state.oppTeams.length) state.resultsOppIdx = state.liveOppIdx;
   document.getElementById('teamSizeSelect').value = String(TEAM_SIZE);
   document.getElementById('formatSub').textContent = `Team Event · Format ${TEAM_SIZE}v${TEAM_SIZE} · General's Handbook 2026-27 (Aqshy)`;
 }
@@ -2264,6 +2302,7 @@ function renderAllInner(){
   renderOppFitMatrix();
   renderTacticMatrix();
   renderLiveOppSelect();
+  renderResultsOppSelect();
   document.getElementById('modeSelect').value = state.mode;
   document.getElementById('maxTacticDuplicatesInput').value = state.maxTacticDuplicates;
   document.getElementById('maxTacticDuplicatesInput').max = String(BATTLE_TACTICS.length);
