@@ -3979,9 +3979,11 @@ function loadStateFromStorage(){
     return false;
   }
 }
-document.getElementById('clearStorageBtn').addEventListener('click', ()=>{
-  const ok = confirm('Effacer toutes les données de cet appareil (rosters, matrices, pairing en cours) ?\n\nLa synchronisation avec Firebase sera suspendue : les données du serveur ne seront PAS rechargées automatiquement et ne seront pas modifiées. Pour les récupérer plus tard, utilise « Forcer un rechargement depuis Firebase ».\n\nCette action est irréversible pour cet appareil. Pense à exporter une configuration si tu veux la garder.');
+document.getElementById('clearStorageBtn').addEventListener('click', async ()=>{
+  const cloud = !!(currentUserDoc && typeof db !== 'undefined' && db && typeof STATE_DOC_REF === 'function');
+  const ok = confirm('NOUVEAU TOURNOI : effacer toutes les données (rosters, listes d\'armée, matrices, pairing et résultats) ?\n\n' + (cloud ? 'Les données seront aussi supprimées sur Firebase : elles disparaîtront pour TOUTES les personnes qui utilisent l\'outil et ne reviendront pas à la prochaine connexion.\n\n' : 'Cela efface les données de cet appareil.\n\n') + 'Cette action est irréversible. Pense à exporter une configuration si tu veux garder une copie.');
   if(!ok) return;
+  if(cloud && !confirm('Dernière confirmation : supprimer définitivement les données partagées sur Firebase pour tout le monde ?')) return;
   try{ localStorage.removeItem(STORAGE_KEY); localStorage.removeItem('aos-sync-base-v2'); }catch(e){}
   // Plus de ligne de base locale : si une synchronisation cloud est active, la
   // prochaine version reçue du serveur pourra de nouveau s'appliquer normalement.
@@ -4006,12 +4008,20 @@ document.getElementById('clearStorageBtn').addEventListener('click', ()=>{
   };
   document.getElementById('autoSaveIndicator').textContent = '';
   renderAll();
-  // On ne recharge PAS la version du serveur : on coupe l'écoute temps réel (sinon le
-  // premier snapshot réimporterait tout de suite les données). Comme la version de
-  // référence est supprimée, rien n'est non plus renvoyé au serveur (les données
-  // partagées restent intactes). La synchro reprend via « Forcer un rechargement ».
+  // Écoute coupée le temps d'écraser le document partagé par l'état vide : sinon le
+  // serveur (ancien tournoi) serait réimporté ou fusionné avec l'état vide.
   try{ if(typeof stopStateSync === 'function') stopStateSync(); }catch(e){}
-  if(currentUserDoc && typeof setCloudIndicator === 'function') setCloudIndicator('⏸ Synchronisation suspendue : données effacées sur cet appareil (rechargement manuel possible).');
+  if(cloud){
+    setCloudIndicator('Suppression des données sur Firebase…');
+    try{
+      await STATE_DOC_REF().set(toSyncTree(state)); // écrase tout le document avec l'état vide
+      setCloudIndicator('☁ Données effacées sur Firebase (' + clockLabel() + ').');
+      startStateSync(); // repart de la version serveur, désormais vide
+    }catch(e){
+      setCloudIndicator('⚠ Données effacées sur cet appareil, mais PAS sur Firebase : ' + ((e && (e.message || e.code)) || 'erreur inconnue') + '.', true);
+      alert('Les données ont été effacées sur cet appareil, mais la suppression sur Firebase a échoué (' + ((e && (e.message || e.code)) || 'erreur inconnue') + '). La synchronisation reste suspendue : elles ne seront pas réimportées. Réessaie l\'effacement, ou vérifie tes droits d\'accès.');
+    }
+  }
 });
 
 /* ---------- Full render ---------- */
