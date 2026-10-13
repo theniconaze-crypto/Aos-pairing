@@ -3980,7 +3980,7 @@ function loadStateFromStorage(){
   }
 }
 document.getElementById('clearStorageBtn').addEventListener('click', ()=>{
-  const ok = confirm('Effacer toutes les données sauvegardées sur cet appareil (rosters, matrices, pairing en cours) ? Cette action est irréversible. Pense à exporter une configuration si tu veux la garder.');
+  const ok = confirm('Effacer toutes les données de cet appareil (rosters, matrices, pairing en cours) ?\n\nLa synchronisation avec Firebase sera suspendue : les données du serveur ne seront PAS rechargées automatiquement et ne seront pas modifiées. Pour les récupérer plus tard, utilise « Forcer un rechargement depuis Firebase ».\n\nCette action est irréversible pour cet appareil. Pense à exporter une configuration si tu veux la garder.');
   if(!ok) return;
   try{ localStorage.removeItem(STORAGE_KEY); localStorage.removeItem('aos-sync-base-v2'); }catch(e){}
   // Plus de ligne de base locale : si une synchronisation cloud est active, la
@@ -4006,9 +4006,12 @@ document.getElementById('clearStorageBtn').addEventListener('click', ()=>{
   };
   document.getElementById('autoSaveIndicator').textContent = '';
   renderAll();
-  // Si on est connecté, on repart de la version du serveur (ce bouton ne vide que cet
-  // appareil, il ne doit surtout pas vider les données partagées).
-  if(currentUserDoc && !LOCAL_MODE) forceReloadFromServer();
+  // On ne recharge PAS la version du serveur : on coupe l'écoute temps réel (sinon le
+  // premier snapshot réimporterait tout de suite les données). Comme la version de
+  // référence est supprimée, rien n'est non plus renvoyé au serveur (les données
+  // partagées restent intactes). La synchro reprend via « Forcer un rechargement ».
+  try{ if(typeof stopStateSync === 'function') stopStateSync(); }catch(e){}
+  if(currentUserDoc && typeof setCloudIndicator === 'function') setCloudIndicator('⏸ Synchronisation suspendue : données effacées sur cet appareil (rechargement manuel possible).');
 });
 
 /* ---------- Full render ---------- */
@@ -5095,6 +5098,7 @@ async function forceReloadFromServer(){
     applySyncTree(raw);
     setSyncBase(raw);
     setCloudIndicator('☁ Rechargé depuis Firebase (' + clockLabel() + ').');
+    if(!stateUnsub && currentUserDoc) startStateSync(); // reprend la synchro après une suspension
   }catch(e){
     applyingRemoteState = false;
     setCloudIndicator('⚠ Connexion à Firebase impossible : ' + ((e && (e.message || e.code)) || 'erreur inconnue') + '.', true);
