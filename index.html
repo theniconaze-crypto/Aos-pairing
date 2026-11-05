@@ -4,6 +4,37 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ordre de Bataille — Age of Sigmar · Outil de Pairing</title>
+<!-- Tailwind CSS (Play CDN) : couche de design uniquement, preflight désactivé pour ne pas casser le CSS existant -->
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script>
+tailwind.config = {
+  corePlugins: { preflight: false },
+  theme: {
+    extend: {
+      colors: {
+        ink: 'var(--bg)',
+        panel: 'var(--bg-panel)',
+        raised: 'var(--bg-raised)',
+        line: 'var(--line)',
+        bone: { DEFAULT: 'var(--bone)', dim: 'var(--bone-dim)' },
+        brass: { DEFAULT: 'var(--brass)', bright: 'var(--brass-bright)' },
+        blood: { DEFAULT: 'var(--red)', bright: 'var(--red-bright)' },
+        moss: { DEFAULT: 'var(--green)', bright: 'var(--green-bright)' },
+        ember: 'var(--amber)'
+      },
+      fontFamily: {
+        display: ['Oswald', 'sans-serif'],
+        mono: ['"IBM Plex Mono"', 'monospace'],
+        sans: ['"IBM Plex Sans"', 'sans-serif']
+      },
+      boxShadow: {
+        card: '0 1px 0 rgba(255,255,255,.04) inset, 0 8px 20px -10px rgba(0,0,0,.75)',
+        glow: '0 0 0 3px rgba(217,176,110,.22)'
+      }
+    }
+  }
+};
+</script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
 
@@ -555,6 +586,145 @@
     display:flex; flex-direction:column; gap:4px; font-size:11px; color:var(--bone-dim);
     font-family:'IBM Plex Mono',monospace; text-transform:uppercase;
   }
+</style>
+<style type="text/tailwindcss">
+/* ===== Couche design Tailwind (visuel uniquement : aucun comportement ni nom de classe modifié) ===== */
+:root{ color-scheme: dark; }
+::selection{ background: rgba(217,176,110,.35); color: var(--bone); }
+*{ scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+::-webkit-scrollbar{ @apply h-2 w-2; }
+::-webkit-scrollbar-track{ background: transparent; }
+::-webkit-scrollbar-thumb{ @apply rounded-full; background: var(--line); }
+::-webkit-scrollbar-thumb:hover{ background: var(--brass); }
+
+body{
+  @apply antialiased;
+  background-image:
+    radial-gradient(900px 420px at 50% -100px, rgba(163,53,47,.20), transparent 70%),
+    radial-gradient(700px 400px at 100% 0, rgba(184,147,90,.08), transparent 70%);
+  background-attachment: fixed;
+}
+
+/* En-tête */
+.cmd-header{
+  @apply relative overflow-hidden rounded-2xl px-4 py-5 shadow-card sm:px-7 sm:py-6;
+  background-image: linear-gradient(135deg, rgba(163,53,47,.14), transparent 45%), linear-gradient(180deg, var(--bg-panel), var(--bg));
+}
+.cmd-header::after{
+  content:''; @apply pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full;
+  background: radial-gradient(circle, rgba(217,176,110,.14), transparent 70%);
+}
+.cmd-header h1{
+  @apply text-2xl sm:text-3xl;
+  background-image: linear-gradient(90deg, var(--bone), var(--brass-bright));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.header-controls select{ @apply rounded-md; }
+.battle-line{ @apply gap-1; }
+.battle-line .seg{ @apply h-1.5 rounded-full transition-all duration-300; }
+.battle-line .seg.locked{ box-shadow: 0 0 10px rgba(133,168,110,.55); }
+.battle-line .seg.partial{ box-shadow: 0 0 8px rgba(201,138,44,.45); }
+
+/* Barre de session */
+.session-bar .who{ @apply rounded-full px-3 py-1; background: rgba(184,147,90,.10); border: 1px solid rgba(184,147,90,.30); }
+.session-bar .who:empty{ display: none; }
+.session-bar button.link{ @apply transition-colors duration-150; }
+
+/* Onglets */
+.tabs{
+  @apply sticky top-0 z-30 mb-5 gap-1 overflow-x-auto rounded-xl p-1 shadow-card backdrop-blur-md;
+  background-color: rgba(23,20,15,.90); border: 1px solid var(--line);
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar{ display: none; }
+.tab-btn{ @apply whitespace-nowrap rounded-lg px-4 py-2.5 transition-all duration-200; border-bottom: 0; }
+.tab-btn:hover{ background: rgba(231,223,208,.06); }
+.tab-btn.active{ border-bottom: 0; background: rgba(184,147,90,.14); box-shadow: inset 0 -2px 0 var(--red-bright), inset 0 0 0 1px rgba(184,147,90,.22); }
+.panel.active{ animation: aosFade .28s ease-out; }
+@keyframes aosFade{ from{ opacity:0; transform: translateY(6px); } to{ opacity:1; transform:none; } }
+@media (prefers-reduced-motion: reduce){ .panel.active{ animation: none; } }
+
+/* Titres de section */
+h2.section-title{ @apply flex items-center gap-2; }
+h2.section-title::before{
+  content:''; @apply inline-block h-4 w-1 flex-none rounded-full;
+  background-image: linear-gradient(180deg, var(--red-bright), var(--brass));
+}
+
+/* Champs */
+input[type=text], input[type=password], input[type=number], select, textarea{ @apply rounded-md transition duration-150; }
+input[type=text]:hover, input[type=password]:hover, select:hover{ border-color: rgba(184,147,90,.55); }
+input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, select:focus, textarea:focus,
+.modal-body textarea:focus, #pdfImportBody input[type=text]:focus, #pdfImportBody select:focus{
+  outline: none; border-color: var(--brass-bright); @apply shadow-glow;
+}
+table.matrix input[type=number]:focus{ outline: none; box-shadow: inset 0 0 0 2px var(--brass-bright); background: rgba(217,176,110,.08); }
+.score-inputs input[type=number]{ @apply rounded-lg; }
+
+/* Boutons */
+.btn{
+  @apply rounded-md tracking-wide shadow-md transition duration-150 active:scale-[.98];
+  background-image: linear-gradient(180deg, #b93d36, var(--red));
+}
+.btn:hover{ background-image: linear-gradient(180deg, var(--red-bright), #b53a33); }
+.btn.secondary{ @apply shadow-none; background-image: none; }
+.btn.secondary:hover{ background: rgba(184,147,90,.12); border-color: var(--brass-bright); }
+.btn.strange-btn{ background-image: linear-gradient(135deg, var(--red), var(--brass)); box-shadow: 0 6px 18px -8px rgba(217,176,110,.6); }
+.btn.strange-btn:hover{ filter: brightness(1.12); }
+.btn:disabled{ @apply cursor-not-allowed; }
+.opp-pill{ @apply rounded-full px-4 transition-all duration-150; }
+.opp-pill.active{ border-bottom-width: 1px; box-shadow: 0 0 0 1px var(--red-bright), 0 6px 16px -8px rgba(217,70,61,.7); }
+.army-toggle, .modal-close{ @apply rounded-md transition duration-150; }
+.roster-row .list-btn, table.matrix .matrix-list-btn{ @apply rounded-md transition-all duration-150; }
+.scn-btn{ @apply transition-all duration-150; }
+
+/* Cartes et panneaux */
+.roster-row{ @apply rounded-lg shadow-card transition-colors duration-200; }
+.roster-row:hover{ border-color: rgba(184,147,90,.5); }
+.table-card{ @apply rounded-lg shadow-card transition-shadow duration-200; }
+.table-card:hover{ box-shadow: 0 12px 28px -12px rgba(0,0,0,.85), 0 0 0 1px rgba(184,147,90,.25); }
+.table-card.locked{ box-shadow: 0 8px 22px -12px rgba(133,168,110,.45); }
+.slot{ @apply rounded-md transition-colors duration-150; }
+.rec-box, .rec-choice{ @apply rounded-md; }
+.rec-choice.best{ box-shadow: 0 0 0 3px rgba(217,176,110,.12); }
+.score-pill, .tac-tag, .fac-tag{ @apply rounded; }
+.totals{ @apply gap-6 rounded-xl shadow-card; background-image: linear-gradient(180deg, rgba(255,255,255,.035), transparent); }
+.totals .stat .v{ @apply text-2xl tabular-nums; }
+.matrix-wrap{ @apply rounded-lg shadow-card; }
+table.matrix td.rowhead{ @apply transition-colors duration-150; }
+table.matrix tr:hover td.rowhead{ color: var(--brass-bright); }
+details.advanced{ @apply overflow-hidden rounded-lg shadow-card; }
+details.advanced summary{ @apply select-none transition-colors duration-150; }
+details.advanced summary:hover{ color: var(--brass-bright); background: rgba(184,147,90,.06); }
+.scn-tile{ @apply rounded-lg shadow-card transition duration-150; }
+.scn-tile:hover{ transform: translateY(-2px); }
+.scn-tile img, .scn-detail img, .layout-modal-img img{ @apply rounded-md; }
+.scn-detail{ @apply rounded-xl shadow-card; }
+.tac-card{ @apply rounded-lg shadow-card; }
+.strange-card{ @apply rounded-lg shadow-card; }
+.pdfimp-chip{ @apply rounded-full transition duration-150; }
+.pdfimp-list{ @apply rounded-md; }
+.army-view .army-unit{ @apply rounded-md; }
+.army-view .army-note{ @apply rounded-md; }
+.footer-note{ @apply rounded-b-lg; }
+
+/* Modales */
+.modal-overlay, #userAdminOverlay, #lastLoginsOverlay{ @apply backdrop-blur-sm; background-color: rgba(8,6,4,.72); }
+.modal-box{ @apply overflow-hidden rounded-2xl shadow-2xl; }
+.modal-head{ background-image: linear-gradient(180deg, rgba(255,255,255,.03), transparent); }
+.useradmin-box{ @apply rounded-2xl shadow-2xl; }
+.useradmin-row{ @apply -mx-2 rounded-md px-2 transition-colors duration-150; }
+.useradmin-row:hover{ background: rgba(184,147,90,.06); }
+.useradmin-row .ulast{ @apply rounded-full; }
+
+/* Connexion */
+#loginOverlay{
+  background-image:
+    radial-gradient(800px 420px at 50% 0, rgba(163,53,47,.26), transparent 70%),
+    radial-gradient(600px 400px at 100% 100%, rgba(184,147,90,.10), transparent 70%);
+}
+.login-box{ @apply overflow-hidden rounded-2xl shadow-2xl; }
+.login-box h1{ @apply text-xl; }
 </style>
 </head>
 <body>
