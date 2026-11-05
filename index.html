@@ -4677,7 +4677,8 @@ if(FIREBASE_CONFIGURED) fbAuth.onAuthStateChanged(async (user)=>{
       uid: user.uid,
       username: doc.data().username || fallbackUsername,
       role: doc.data().role || 'user',
-      scenariosAccess: doc.data().scenariosAccess === true
+      scenariosAccess: doc.data().scenariosAccess === true,
+      strangeAccess: doc.data().strangeAccess === true
     };
     showApp();
     startStateSync();
