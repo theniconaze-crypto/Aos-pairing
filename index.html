@@ -328,6 +328,27 @@
   }
   details.advanced .inner{padding:0 14px 14px;}
 
+  /* Docteur Strange (admin) */
+  .strange-btn{background:linear-gradient(135deg,var(--red),var(--brass)); color:var(--bone);}
+  #strangeResult{margin-top:14px;}
+  .strange-head{font-size:13px; color:var(--bone); margin-bottom:10px;}
+  .strange-wait,.strange-warn{font-size:13px; color:var(--brass-bright); padding:10px 0;}
+  .strange-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px;}
+  .strange-card{border:1px solid var(--brass); background:var(--bg-raised); padding:12px 14px;}
+  .strange-rank{font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--brass-bright); margin-bottom:8px;}
+  .strange-def{font-size:14px; color:var(--bone); margin:3px 0;}
+  .strange-def span{color:var(--bone-dim); font-size:12px;}
+  .strange-stats{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px;}
+  .strange-stats b{display:block; color:var(--brass-bright); font-size:15px;}
+  .strange-stats small{color:var(--bone-dim); font-size:10.5px;}
+  .strange-table{width:100%; border-collapse:collapse; font-size:12px; margin-top:8px;}
+  .strange-table th,.strange-table td{border-bottom:1px solid var(--line); padding:4px 6px; text-align:left; color:var(--bone);}
+  .strange-table th{color:var(--brass); font-weight:normal;}
+  .fac-tag{
+    display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:600;
+    letter-spacing:.04em; color:var(--bone-dim); background:var(--bg-raised);
+    border:1px solid var(--line); padding:1px 5px; margin-left:6px; vertical-align:middle;
+  }
   /* Live pairing */
   .mode-row{display:flex; gap:10px; align-items:center; margin-bottom:18px; flex-wrap:wrap;}
   .mode-row label{font-size:12.5px; color:var(--bone-dim); font-family:'IBM Plex Mono',monospace;}
@@ -792,7 +813,9 @@
 
     <div class="toolbar">
       <button class="btn secondary" id="resetPairing">Réinitialiser le pairing</button>
+      <button class="btn strange-btn" id="strangeBtn" type="button" style="display:none">🔮 Docteur Strange</button>
     </div>
+    <div id="strangeResult" style="display:none"></div>
   </div>
 
   <div class="panel" id="panel-results">
@@ -2329,6 +2352,18 @@ function renderTableRoster(){
   });
 }
 
+// Abréviation de faction (ex. « Stormcast Eternals » -> « SE ») : initiales des mots significatifs, ou 4 premières lettres
+// pour un nom en un seul mot. Purement visuel : n'utilise aucune donnée du jeu.
+function factionAbbr(faction){
+  const f = String(faction||'').trim();
+  if(!f) return '';
+  const w = f.split(/[\s-]+/).filter(x=>/^[A-Za-zÀ-ÿ]/.test(x) && !/^(of|the|de|des|du|la|le)$/i.test(x));
+  return w.length > 1 ? w.map(x=>x[0].toUpperCase()).join('') : f.slice(0,4).toUpperCase();
+}
+function factionTagHtml(entry){
+  const a = entry ? factionAbbr(entry.faction) : '';
+  return a ? `<span class="fac-tag" title="${String(entry.faction).replace(/"/g,'&quot;')}">${a}</span>` : '';
+}
 function displayName(entry, fallback){
   return entry.name && entry.name.trim() ? entry.name : fallback;
 }
@@ -3502,7 +3537,7 @@ function renderLive(){
     if(p.myList!==null){
       const myEntry = state.myTeam[p.myList];
       const myFdTag = tacTagHtml(myEntry);
-      html += `<div class="slot"><span class="side">Moi</span><span class="val">${displayName(myEntry,'Joueur '+(p.myList+1))}${myFdTag}</span>
+      html += `<div class="slot"><span class="side">Moi</span><span class="val">${displayName(myEntry,'Joueur '+(p.myList+1))}${factionTagHtml(myEntry)}${myFdTag}</span>
         <button class="x" data-action="clearMy" data-t="${tIdx}">✕</button></div>`;
     } else {
       const options = [...Array(TEAM_SIZE).keys()].filter(i=>!myUsedArr.has(i));
@@ -3523,7 +3558,7 @@ function renderLive(){
         const mood = moodBadgeHtml(c.myIdx, p.oppList, tIdx, null, oppPool, aggOppPool);
         html += `<div class="rec-choice${rank===0?' best':''}">
           <div class="rec-label">${rank===0?'① Meilleur choix':'② Second choix'} · score ${c.value.toFixed(1)}${mood}</div>
-          <div class="rec-name">${displayName(entry,'Joueur '+(c.myIdx+1))}${fdTag}</div>
+          <div class="rec-name">${displayName(entry,'Joueur '+(c.myIdx+1))}${factionTagHtml(entry)}${fdTag}</div>
           <button class="btn${rank===0?'':' secondary'}" data-action="setMyChoice" data-t="${tIdx}" data-my="${c.myIdx}">Valider ce choix</button>
         </div>`;
       });
@@ -3540,7 +3575,7 @@ function renderLive(){
     if(p.oppList!==null){
       const oppEntry = liveOppTeam().roster[p.oppList];
       const oppFdTag = tacTagHtml(oppEntry);
-      html += `<div class="slot"><span class="side">Adv.</span><span class="val">${displayName(oppEntry,'Adv. '+(p.oppList+1))}${oppFdTag}</span>
+      html += `<div class="slot"><span class="side">Adv.</span><span class="val">${displayName(oppEntry,'Adv. '+(p.oppList+1))}${factionTagHtml(oppEntry)}${oppFdTag}</span>
         <button class="x" data-action="clearOpp" data-t="${tIdx}">✕</button></div>`;
     } else {
       const optionsO = [...Array(TEAM_SIZE).keys()].filter(j=>!oppUsedArr.has(j));
@@ -3577,12 +3612,12 @@ function renderLive(){
           html += `<div class="rec-choices">
             <div class="rec-choice${bestIsC0?' best':''}">
               <div class="rec-label">${bestIsC0?'① Meilleur choix pour toi':'② Second choix'} · score ${s0>=0?'+':''}${s0.toFixed(1)}${mood0}</div>
-              <div class="rec-name">${displayName(oppEntry0,'Adv. '+(c0+1))}${oppFdTag0}</div>
+              <div class="rec-name">${displayName(oppEntry0,'Adv. '+(c0+1))}${factionTagHtml(oppEntry0)}${oppFdTag0}</div>
               <button class="btn${bestIsC0?'':' secondary'}" data-action="chooseOppAttacker" data-t="${tIdx}" data-opp="${c0}">Choisir cet adversaire</button>
             </div>
             <div class="rec-choice${!bestIsC0?' best':''}">
               <div class="rec-label">${!bestIsC0?'① Meilleur choix pour toi':'② Second choix'} · score ${s1>=0?'+':''}${s1.toFixed(1)}${mood1}</div>
-              <div class="rec-name">${displayName(oppEntry1,'Adv. '+(c1+1))}${oppFdTag1}</div>
+              <div class="rec-name">${displayName(oppEntry1,'Adv. '+(c1+1))}${factionTagHtml(oppEntry1)}${oppFdTag1}</div>
               <button class="btn${!bestIsC0?'':' secondary'}" data-action="chooseOppAttacker" data-t="${tIdx}" data-opp="${c1}">Choisir cet adversaire</button>
             </div>
           </div>`;
@@ -3837,6 +3872,153 @@ document.getElementById('liveOppSelect').addEventListener('change', e=>{
   state.liveOppIdx = newIdx;
   renderLive();
 });
+
+/* ---------- Docteur Strange (admin) : simulation de tous les futurs du pairing ---------- */
+// Modèle de pairing simulé (format type ETC) : à chaque tour, chaque équipe pose un
+// défenseur sur une table libre, propose 2 attaquants au défenseur adverse, et chaque
+// défenseur garde l'un des 2. Les attaquants refusés retournent dans la réserve. Quand il
+// ne reste que 4 joueurs par équipe, les 2 refusés s'affrontent et les 2 derniers aussi.
+// Pour chaque couple (défenseur tour 1, défenseur tour 2) de mon équipe, on simule un grand
+// nombre de scénarios où l'adversaire joue de façon plausible mais incertaine (choix tirés
+// au sort, pondérés par son intérêt), et où mes autres choix suivent la recommandation.
+const STRANGE_SIMS_PER_COMBO = 300;
+const STRANGE_TOP_SHARE = 0.10; // part des meilleurs scénarios analysés
+
+function strangeMean(arr, fn){ if(!arr.length) return 0; let s=0; arr.forEach(x=>s+=fn(x)); return s/arr.length; }
+function strangePickSoft(items, weightFn, temp){
+  // tirage pondéré (softmax) : l'adversaire choisit le plus souvent ce qui l'arrange
+  const vals = items.map(weightFn);
+  const mx = Math.max(...vals);
+  const w = vals.map(v=>Math.exp((v-mx)/temp));
+  let r = Math.random()*w.reduce((a,b)=>a+b,0);
+  for(let k=0;k<items.length;k++){ r-=w[k]; if(r<=0) return items[k]; }
+  return items[items.length-1];
+}
+// Valeur estimée du reste du pairing (moyenne des tables restantes, entre l'optimum pour
+// moi et l'optimum pour l'adversaire) : sert à départager deux choix à court terme.
+function strangeFutureValue(M, O, T){
+  if(!M.length || !O.length || !T.length) return 0;
+  const v = (i,j)=>strangeMean(T, t=>calcScore(i,j,t));
+  const best = optimalAssignment(M, O, v).total;
+  const worst = -optimalAssignment(M, O, (i,j)=>-v(i,j)).total;
+  return (best+worst)/2;
+}
+
+function strangeSimulate(M0, O0, T0, forcedDefenders){
+  let M=[...M0], O=[...O0], T=[...T0];
+  let score=0; let round=0;
+  const T_SOFT = 1.0;
+  const pairs=[];
+  while(M.length>=4){
+    // 1. Défenseurs
+    let dM = forcedDefenders[round];
+    if(dM===undefined){
+      dM = M.reduce((b,i)=>{ const v=Math.max(...T.map(t=>strangeMean(O,j=>calcScore(i,j,t)))); return v>b.v?{i,v}:b; },{i:M[0],v:-1e9}).i;
+    }
+    const dO = strangePickSoft(O, j=>Math.max(...T.map(t=>-strangeMean(M,i=>calcScore(i,j,t)))), T_SOFT);
+    // 2. Choix des tables par les défenseurs (ordre tiré au sort)
+    let tM, tO;
+    const myTable = (tables)=>tables.reduce((b,t)=>{ const v=strangeMean(O.filter(j=>j!==dO),j=>calcScore(dM,j,t)); return v>b.v?{t,v}:b; },{t:tables[0],v:-1e9}).t;
+    const oppTable = (tables)=>strangePickSoft(tables, t=>-strangeMean(M.filter(i=>i!==dM),i=>calcScore(i,dO,t)), T_SOFT);
+    if(Math.random()<0.5){ tM=myTable(T); tO=oppTable(T.filter(t=>t!==tM)); }
+    else { tO=oppTable(T); tM=myTable(T.filter(t=>t!==tO)); }
+    // 3. Attaquants proposés
+    const myAtk = M.filter(i=>i!==dM).map(i=>({i,v:calcScore(i,dO,tO)})).sort((a,b)=>b.v-a.v).slice(0,2).map(x=>x.i);
+    const oppPool = O.filter(j=>j!==dO);
+    const oppPairs=[];
+    for(let a=0;a<oppPool.length;a++) for(let b=a+1;b<oppPool.length;b++) oppPairs.push([oppPool[a],oppPool[b]]);
+    const oppAtk = strangePickSoft(oppPairs, pr=>-Math.max(calcScore(dM,pr[0],tM),calcScore(dM,pr[1],tM)), T_SOFT);
+    // 4. Chaque défenseur garde un attaquant
+    const restT = T.filter(t=>t!==tM && t!==tO);
+    const keepMine = oppAtk.reduce((b,j)=>{
+      const v = calcScore(dM,j,tM) + strangeFutureValue(M.filter(i=>i!==dM), O.filter(x=>x!==dO && x!==j), restT);
+      return v>b.v?{j,v}:b; },{j:oppAtk[0],v:-1e9}).j;
+    const keepOpp = strangePickSoft(myAtk, i=>-calcScore(i,dO,tO), T_SOFT);
+    score += calcScore(dM,keepMine,tM) + calcScore(keepOpp,dO,tO);
+    pairs.push({round:round+1, myDef:dM, oppAtk:keepMine, table:tM}, {round:round+1, oppDef:dO, myAtk:keepOpp, table:tO});
+    M = M.filter(i=>i!==dM && i!==keepOpp);
+    O = O.filter(j=>j!==dO && j!==keepMine);
+    T = restT;
+    if(M.length===2){
+      // refusés contre refusés, derniers contre derniers ; tables restantes tirées au sort
+      const refM = myAtk.find(i=>i!==keepOpp), refO = oppAtk.find(j=>j!==keepMine);
+      const lastM = M.find(i=>i!==refM), lastO = O.find(j=>j!==refO);
+      const sw = Math.random()<0.5;
+      score += calcScore(refM,refO,sw?T[0]:T[1]) + calcScore(lastM,lastO,sw?T[1]:T[0]);
+      M=[];O=[];T=[];
+    }
+    round++;
+  }
+  // Cas de reste à 1 contre 1 (équipes de taille impaire)
+  if(M.length===1 && O.length===1 && T.length===1) score += calcScore(M[0],O[0],T[0]);
+  return score;
+}
+
+function runDocteurStrange(){
+  const out = document.getElementById('strangeResult');
+  const pairing = currentPairing();
+  if(pairing.some(p=>(p.myList===null)!==(p.oppList===null))){
+    out.innerHTML = `<div class="strange-warn">Termine ou efface d'abord les tables à moitié remplies : Docteur Strange part des tables entièrement libres.</div>`;
+    return;
+  }
+  const lockedScore = lockedTotal();
+  const myUsed = usedMy(), oppUsed = usedOpp();
+  const M = [...Array(TEAM_SIZE).keys()].filter(i=>!myUsed.has(i));
+  const O = [...Array(TEAM_SIZE).keys()].filter(j=>!oppUsed.has(j));
+  const T = pairing.map((p,t)=>p.myList===null?t:null).filter(t=>t!==null);
+  if(M.length<6){
+    out.innerHTML = `<div class="strange-warn">Il faut au moins 6 joueurs encore libres par équipe pour analyser 2 tours de défense.</div>`;
+    return;
+  }
+  out.innerHTML = `<div class="strange-wait">🔮 Docteur Strange explore les futurs possibles…</div>`;
+  setTimeout(()=>{
+    const combos=[];
+    const all=[];
+    M.forEach(d1=>M.forEach(d2=>{
+      if(d1===d2) return;
+      const scores=[];
+      for(let s=0;s<STRANGE_SIMS_PER_COMBO;s++){
+        const sc = lockedScore + strangeSimulate(M,O,T,[d1,d2]);
+        scores.push(sc); all.push({c:combos.length, sc});
+      }
+      scores.sort((a,b)=>b-a);
+      const topN = Math.max(1, Math.round(scores.length*STRANGE_TOP_SHARE));
+      combos.push({d1,d2,
+        mean: scores.reduce((a,b)=>a+b,0)/scores.length,
+        win: scores.filter(x=>x>0).length/scores.length,
+        best: scores[0], worst: scores[scores.length-1],
+        topMean: scores.slice(0,topN).reduce((a,b)=>a+b,0)/topN,
+        inTop: 0});
+    }));
+    // Meilleurs scénarios, toutes combinaisons confondues
+    all.sort((a,b)=>b.sc-a.sc);
+    const nTop = Math.max(1, Math.round(all.length*STRANGE_TOP_SHARE));
+    all.slice(0,nTop).forEach(x=>combos[x.c].inTop++);
+    combos.forEach(c=>c.topShare=c.inTop/nTop);
+    combos.sort((a,b)=> (b.topShare-a.topShare) || (b.mean-a.mean));
+    const nm = i=>displayName(state.myTeam[i],'Joueur '+(i+1));
+    const f = x=>(x>=0?'+':'')+x.toFixed(1);
+    const pct = x=>Math.round(x*100)+' %';
+    const card = (c,rank)=>`<div class="strange-card">
+      <div class="strange-rank">Placement n°${rank}</div>
+      <div class="strange-def"><span>Tour 1 en défense :</span> <b>${nm(c.d1)}</b></div>
+      <div class="strange-def"><span>Tour 2 en défense :</span> <b>${nm(c.d2)}</b></div>
+      <div class="strange-stats">
+        <div><b>${pct(c.topShare)}</b><small>des meilleurs scénarios</small></div>
+        <div><b>${f(c.topMean)}</b><small>score moyen dans ses meilleurs scénarios</small></div>
+        <div><b>${f(c.mean)}</b><small>score final moyen</small></div>
+        <div><b>${pct(c.win)}</b><small>probabilité de finir positif</small></div>
+        <div><b>${f(c.worst)} / ${f(c.best)}</b><small>pire / meilleur cas</small></div>
+      </div></div>`;
+    const others = combos.slice(2,8).map(c=>`<tr><td>${nm(c.d1)}</td><td>${nm(c.d2)}</td><td>${pct(c.topShare)}</td><td>${f(c.mean)}</td><td>${pct(c.win)}</td></tr>`).join('');
+    out.innerHTML = `<div class="strange-head">🔮 J'ai vu ${all.length.toLocaleString('fr-FR')} futurs. Voici les 2 placements défensifs présents dans le plus grand nombre des ${nTop.toLocaleString('fr-FR')} meilleurs (${Math.round(STRANGE_TOP_SHARE*100)} % des scores finaux les plus élevés).</div>
+      <div class="strange-grid">${card(combos[0],1)}${combos[1]?card(combos[1],2):''}</div>
+      <details class="rec-more"><summary>Placements suivants</summary>
+      <table class="strange-table"><tr><th>Défenseur T1</th><th>Défenseur T2</th><th>Meilleurs scénarios</th><th>Score moyen</th><th>Proba &gt; 0</th></tr>${others}</table></details>
+      <div class="hint" style="margin-top:8px;">Simulation : l'adversaire fait des choix incertains mais orientés vers son intérêt (défenseur, table, attaquants, choix de l'attaquant) ; tes autres choix suivent la recommandation de l'outil. Les scores incluent les tables déjà verrouillées.</div>`;
+  }, 30);
+}
+document.getElementById('strangeBtn').addEventListener('click', runDocteurStrange);
 
 document.getElementById('resetPairing').addEventListener('click', ()=>{
   const ok = confirm(`Réinitialiser le pairing en cours pour « ${liveOppTeam().name || 'cette équipe adverse'} » (ouvre une nouvelle trame vierge pour cette équipe) ? Le pairing des autres équipes adverses n'est pas touché.`);
@@ -4154,6 +4336,9 @@ function applyRoleRestrictions(){
 
   const manageBtn = document.getElementById('manageUsersBtn');
   if(manageBtn) manageBtn.style.display = (isAdmin && !LOCAL_MODE) ? '' : 'none';
+  // Docteur Strange : admin, ou compte à qui l'admin a coché le droit
+  const strangeAccess = isAdmin || (!!currentUserDoc && currentUserDoc.strangeAccess === true);
+  ['strangeBtn','strangeResult'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display = strangeAccess ? '' : 'none'; });
 
   // Réservé à l'admin : réglages de la clé API Gemini + rafraîchissement de la méta
   ['toggleGeminiSettingsBtn','toggleGeminiSettingsBtn2'].forEach(id=>{
@@ -4301,9 +4486,23 @@ async function renderUserAdminList(){
       ${(u.username!=='admin' && u.role==='matchups')
         ? `<label class="ulayouts" title="Autorise ce compte à ouvrir l'onglet Fiches scénarios et le tableau des scénarios de l'onglet Scénarios"><input type="checkbox" class="ulayouts-check" data-uid="${escapeHtmlAuth(u.uid)}" ${u.scenariosAccess===true?'checked':''}> Onglet Scénarios</label>`
         : ''}
+      ${u.username!=='admin'
+        ? `<label class="ulayouts" title="Autorise ce compte à utiliser le bouton Docteur Strange dans le Pairing en direct"><input type="checkbox" class="ustrange-check" data-uid="${escapeHtmlAuth(u.uid)}" ${u.strangeAccess===true?'checked':''}> Docteur Strange</label>`
+        : ''}
       ${u.username!=='admin' ? `<button class="btn secondary" data-del="${escapeHtmlAuth(u.uid)}" data-name="${escapeHtmlAuth(u.username)}" type="button" style="padding:3px 8px;font-size:11px;">Révoquer l'accès</button>` : ''}
     </div>
   `).join('');
+  container.querySelectorAll('.ustrange-check').forEach(chk=>{
+    chk.addEventListener('change', async ()=>{
+      const uid = chk.getAttribute('data-uid');
+      try{
+        await db.collection('users').doc(uid).update({ strangeAccess: chk.checked });
+      }catch(e){
+        alert('Erreur lors de la modification du droit : ' + e.message);
+        renderUserAdminList();
+      }
+    });
+  });
   container.querySelectorAll('.urole-select').forEach(sel=>{
     sel.addEventListener('change', async ()=>{
       const uid = sel.getAttribute('data-uid');
