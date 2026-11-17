@@ -375,6 +375,30 @@ tailwind.config = {
   .strange-table{width:100%; border-collapse:collapse; font-size:12px; margin-top:8px;}
   .strange-table th,.strange-table td{border-bottom:1px solid var(--line); padding:4px 6px; text-align:left; color:var(--bone);}
   .strange-table th{color:var(--brass); font-weight:normal;}
+
+  /* Onglet Stats */
+  .stats-scroll{overflow-x:auto; border:1px solid var(--line); margin-bottom:8px;}
+  table.stats{border-collapse:collapse; width:100%; font-family:'IBM Plex Mono',monospace; font-size:12px;}
+  table.stats th, table.stats td{border:1px solid var(--line); padding:8px 10px; text-align:center; vertical-align:middle;}
+  table.stats th{background:var(--bg-panel); color:var(--brass); font-weight:500; font-size:11px; text-transform:uppercase; letter-spacing:.04em; white-space:nowrap;}
+  table.stats td.rowhead{background:var(--bg-panel); text-align:left; white-space:nowrap; font-family:'IBM Plex Sans',sans-serif; font-weight:600; color:var(--bone);}
+  table.stats td.rowhead small{display:block; font-weight:400; color:var(--bone-dim); font-size:10.5px;}
+  table.stats tr.total td{background:var(--bg-raised); font-weight:600; border-top:2px solid var(--brass);}
+  table.stats td.win{background:rgba(95,122,79,.22);}
+  table.stats td.loss{background:rgba(163,53,47,.22);}
+  table.stats td.draw{background:rgba(201,138,44,.18);}
+  table.stats td.none{color:var(--bone-dim);}
+  table.stats td .sc{font-size:14px; font-weight:600;}
+  table.stats td .vs{display:block; font-size:10px; color:var(--bone-dim); margin-top:2px; max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-left:auto; margin-right:auto;}
+  .fin-save-row{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:8px;}
+  .fin-save-row input[type=text]{flex:1; min-width:220px; max-width:420px;}
+  .fin-save-row .btn{width:auto;}
+  .fin-round-title{font-family:'Oswald',sans-serif; font-size:15px; color:var(--brass-bright); margin:16px 0 6px; letter-spacing:.03em;}
+  #finishedStatus.err{color:var(--red-bright);}
+  .res-badge{display:inline-block; padding:2px 8px; font-size:10.5px; font-weight:600; letter-spacing:.05em; border:1px solid var(--line);}
+  .res-badge.win{color:var(--green-bright); border-color:var(--green-bright);}
+  .res-badge.loss{color:var(--red-bright); border-color:var(--red-bright);}
+  .res-badge.draw{color:var(--amber); border-color:var(--amber);}
   .fac-tag{
     display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:600;
     letter-spacing:.04em; color:var(--bone-dim); background:var(--bg-raised);
@@ -824,6 +848,8 @@ details.advanced summary:hover{ color: var(--brass-bright); background: rgba(184
     <button class="tab-btn" data-tab="live">4. Pairing en direct</button>
     <button class="tab-btn" data-tab="results">5. Résultats Réels Pairing</button>
     <button class="tab-btn" data-tab="layouts">6. Fiches scénarios</button>
+    <button class="tab-btn" data-tab="stats">7. Stats</button>
+    <button class="tab-btn" data-tab="tournaments">8. Tournois terminés</button>
   </div>
 
   <!-- SETUP -->
@@ -1007,6 +1033,56 @@ details.advanced summary:hover{ color: var(--brass-bright); background: rgba(184
 
     <div class="toolbar">
       <button class="btn secondary" id="resetResults">Réinitialiser les résultats saisis</button>
+    </div>
+
+    <h2 class="section-title">Enregistrer ce tournoi</h2>
+    <div class="hint">Sauvegarde dans le cloud une copie figée du tournoi (équipes, pairing de chaque ronde et scores saisis). Elle sera consultable dans l'onglet « 8. Tournois terminés ». Seules les équipes adverses ayant au moins une table verrouillée sont enregistrées. Le tournoi en cours n'est pas modifié.</div>
+    <div class="fin-save-row">
+      <input type="text" id="saveTournamentName" maxlength="120" placeholder="Nom du tournoi (ex. Open de Lyon 2026)">
+      <button class="btn" id="saveTournamentBtn" type="button">💾 Enregistrer ce tournoi</button>
+    </div>
+    <div class="hint" id="saveTournamentMsg" style="display:none"></div>
+  </div>
+
+  <!-- STATS -->
+  <div class="panel" id="panel-stats">
+    <h2 class="section-title">Stats — bilan global</h2>
+    <div class="hint">Calculées automatiquement à partir des scores saisis dans l'onglet « 5. Résultats Réels Pairing ». Chaque équipe adverse correspond à une ronde. Seules les tables dont les deux scores sont renseignés sont comptées.</div>
+    <div class="totals" id="statsGlobal"></div>
+
+    <h2 class="section-title">Résultat de chaque ronde</h2>
+    <div class="stats-scroll" id="statsRounds"></div>
+
+    <h2 class="section-title">Total de chaque joueur face à chaque équipe</h2>
+    <div class="hint">Chaque case indique « score du joueur – score de l'adversaire » (avec l'adversaire affronté en dessous). Vert = victoire à la table, rouge = défaite, orange = égalité.</div>
+    <div class="stats-scroll" id="statsPlayers"></div>
+  </div>
+
+  <!-- TOURNOIS TERMINÉS -->
+  <div class="panel" id="panel-tournaments">
+    <h2 class="section-title">Tournois terminés</h2>
+    <div class="hint">Tournois enregistrés depuis l'onglet « 5. Résultats Réels Pairing ». Choisis un tournoi pour afficher son bilan (mêmes tableaux que l'onglet « 7. Stats ») et le pairing de chaque ronde.</div>
+    <div class="live-opp-row">
+      <label for="finishedSelect">Tournoi :</label>
+      <select id="finishedSelect"></select>
+      <button class="btn secondary" id="finishedRefreshBtn" type="button" style="width:auto">↻ Actualiser</button>
+      <button class="btn secondary" id="finishedDeleteBtn" type="button" style="width:auto;display:none">🗑 Supprimer</button>
+    </div>
+    <div class="hint" id="finishedStatus"></div>
+    <div id="finishedContent" style="display:none">
+      <div class="hint" id="finishedMeta"></div>
+      <div class="totals" id="finGlobal"></div>
+
+      <h2 class="section-title">Résultat de chaque ronde</h2>
+      <div class="stats-scroll" id="finRounds"></div>
+
+      <h2 class="section-title">Pairing de chaque ronde</h2>
+      <div class="hint">Table par table : joueur de mon équipe, adversaire affronté et score final.</div>
+      <div id="finPairing"></div>
+
+      <h2 class="section-title">Total de chaque joueur face à chaque équipe</h2>
+      <div class="hint">Chaque case indique « score du joueur – score de l'adversaire » (avec l'adversaire affronté en dessous). Vert = victoire à la table, rouge = défaite, orange = égalité.</div>
+      <div class="stats-scroll" id="finPlayers"></div>
     </div>
   </div>
 
@@ -3960,6 +4036,354 @@ function updateResultsTotals(){
   filledEl.textContent = filled + '/' + TEAM_SIZE;
 }
 
+// Dans cet outil, une « ronde » = une équipe adverse, numérotée selon l'ordre de création.
+const MAX_ROUND = 99;
+function oppRoundOf(ot){
+  const r = ot && parseInt(ot.round,10);
+  return (r>=1 && r<=MAX_ROUND) ? r : null;
+}
+// Copie superficielle des équipes adverses avec leur numéro de ronde (rang + 1) ; le pairing
+// et le roster restent les mêmes objets, rien n'est dupliqué ni modifié dans le state.
+function oppTeamsWithRound(oppTeams){
+  return oppTeams.map((ot,i)=>Object.assign({}, ot, {round:i+1}));
+}
+
+function renderStats(){
+  renderStatsFor(
+    {myTeam:state.myTeam, oppTeams:oppTeamsWithRound(state.oppTeams), teamSize:TEAM_SIZE},
+    document.getElementById('statsGlobal'), document.getElementById('statsRounds'), document.getElementById('statsPlayers'),
+    'Aucun résultat saisi pour l\'instant. Renseigne les scores dans l\'onglet « 5. Résultats Réels Pairing ».');
+}
+// Rendu partagé par l'onglet « 7. Stats » (données en cours) et l'onglet « 8. Tournois terminés »
+// (données d'un tournoi enregistré). src = {myTeam, oppTeams, teamSize}.
+function renderStatsFor(src, elG, elR, elP, emptyMsg){
+  if(!elG || !elR || !elP) return;
+  const TEAM_SIZE = src.teamSize; // masque la valeur globale : taille d'équipe du tournoi affiché
+
+  const isNum = v => v!==null && v!==undefined && v!=='' && !isNaN(v);
+  const sgn = n => (n>0?'+':'')+n;
+  const cls = n => n>0?'pos':(n<0?'neg':'');
+  const resOf = (a,b) => a>b?'win':(a<b?'loss':'draw');
+  const resLabel = {win:'Victoire', loss:'Défaite', draw:'Égalité'};
+
+  const nOpp = src.oppTeams.length;
+  const oppName = (ot,i)=> ot.name && ot.name.trim() ? ot.name : 'Équipe adverse '+(i+1);
+
+  // Agrégats
+  const rounds = src.oppTeams.map((ot,i)=>{
+    let my=0, opp=0, played=0, tw=0, tl=0, td=0;
+    ot.pairing.forEach(p=>{
+      if(p.myList===null || p.oppList===null || !isNum(p.myScore) || !isNum(p.oppScore)) return;
+      played++; my+=p.myScore; opp+=p.oppScore;
+      if(p.myScore>p.oppScore) tw++; else if(p.myScore<p.oppScore) tl++; else td++;
+    });
+    return {name:oppName(ot,i), my, opp, played, tw, tl, td, round:oppRoundOf(ot), idx:i};
+  }).sort((a,b)=>{
+    if(a.round===null && b.round===null) return a.idx-b.idx;
+    if(a.round===null) return 1;
+    if(b.round===null) return -1;
+    return a.round-b.round || a.idx-b.idx;
+  });
+  const rLabel = r => r.round!==null ? 'Ronde '+r.round : 'Ronde non définie';
+  const playedRounds = rounds.filter(r=>r.played>0);
+  const gMy = rounds.reduce((a,r)=>a+r.my,0), gOpp = rounds.reduce((a,r)=>a+r.opp,0);
+  const gTW = rounds.reduce((a,r)=>a+r.tw,0), gTL = rounds.reduce((a,r)=>a+r.tl,0), gTD = rounds.reduce((a,r)=>a+r.td,0);
+  const rW = playedRounds.filter(r=>r.my>r.opp).length, rL = playedRounds.filter(r=>r.my<r.opp).length, rD = playedRounds.length-rW-rL;
+
+  elG.innerHTML = `
+    <div class="stat"><span class="v">${rW}-${rD}-${rL}</span><span class="l">Rondes V-N-D</span></div>
+    <div class="stat"><span class="v">${gTW}-${gTD}-${gTL}</span><span class="l">Tables V-N-D</span></div>
+    <div class="stat"><span class="v">${gMy}</span><span class="l">Points marqués</span></div>
+    <div class="stat"><span class="v">${gOpp}</span><span class="l">Points encaissés</span></div>
+    <div class="stat"><span class="v ${cls(gMy-gOpp)}">${sgn(gMy-gOpp)}</span><span class="l">Différentiel</span></div>`;
+
+  // Tableau par ronde
+  if(playedRounds.length===0){
+    elR.innerHTML = '<div class="hint" style="padding:12px;margin:0;">'+emptyMsg+'</div>';
+  } else {
+    let h = `<table class="stats"><thead><tr><th style="text-align:left">Ronde / Adversaire</th><th>Tables jouées</th><th>Tables V-N-D</th><th>Mon équipe</th><th>Adversaire</th><th>Écart</th><th>Résultat</th></tr></thead><tbody>`;
+    rounds.forEach((r,i)=>{
+      if(r.played===0){
+        h += `<tr><td class="rowhead">${rLabel(r)} — ${escapeHtml(r.name)}</td><td class="none" colspan="6">Pas encore de résultat</td></tr>`;
+        return;
+      }
+      const res = resOf(r.my,r.opp);
+      h += `<tr><td class="rowhead">${rLabel(r)} — ${escapeHtml(r.name)}</td>
+        <td>${r.played}/${TEAM_SIZE}</td><td>${r.tw}-${r.td}-${r.tl}</td>
+        <td class="sc"><b>${r.my}</b></td><td><b>${r.opp}</b></td>
+        <td class="${cls(r.my-r.opp)}"><b>${sgn(r.my-r.opp)}</b></td>
+        <td><span class="res-badge ${res}">${resLabel[res]}</span></td></tr>`;
+    });
+    h += `<tr class="total"><td class="rowhead">TOTAL</td><td>${rounds.reduce((a,r)=>a+r.played,0)}</td><td>${gTW}-${gTD}-${gTL}</td>
+      <td>${gMy}</td><td>${gOpp}</td><td class="${cls(gMy-gOpp)}">${sgn(gMy-gOpp)}</td><td>${rW}-${rD}-${rL}</td></tr>`;
+    h += '</tbody></table>';
+    elR.innerHTML = h;
+  }
+
+  // Tableau joueur × équipe adverse
+  let h = `<table class="stats"><thead><tr><th style="text-align:left">Joueur</th>`;
+  const oppOrder = oppIdxByRoundOf(src.oppTeams);
+  oppOrder.forEach(i=>{ const ot=src.oppTeams[i], r=oppRoundOf(ot); h += `<th>${r!==null?'R'+r:'R?'} · ${escapeHtml(oppName(ot,i))}</th>`; });
+  h += `<th>Total pour</th><th>Total contre</th><th>Écart</th><th>V-N-D</th></tr></thead><tbody>`;
+  const colTot = Array.from({length:nOpp}, ()=>({my:0,opp:0,n:0}));
+  src.myTeam.forEach((me,pi)=>{
+    const name = displayName(me,'Joueur '+(pi+1));
+    let tMy=0, tOpp=0, w=0, d=0, l=0;
+    let row = `<tr><td class="rowhead">${escapeHtml(name)}${me.faction?`<small>${escapeHtml(me.faction)}</small>`:''}</td>`;
+    oppOrder.forEach(oi=>{
+      const ot = src.oppTeams[oi];
+      let my=0, opp=0, n=0, vs=[];
+      ot.pairing.forEach(p=>{
+        if(p.myList!==pi || p.oppList===null || !isNum(p.myScore) || !isNum(p.oppScore)) return;
+        my+=p.myScore; opp+=p.oppScore; n++;
+        const oe = ot.roster[p.oppList];
+        vs.push(escapeHtml(displayName(oe,'Adv. '+(p.oppList+1)) + (oe.faction?' · '+oe.faction:'')));
+      });
+      if(n===0){ row += '<td class="none">—</td>'; return; }
+      const r = resOf(my,opp);
+      if(r==='win') w++; else if(r==='loss') l++; else d++;
+      tMy+=my; tOpp+=opp;
+      colTot[oi].my+=my; colTot[oi].opp+=opp; colTot[oi].n++;
+      row += `<td class="${r}"><span class="sc">${my}–${opp}</span><span class="vs" title="${vs.join(' / ')}">${vs.join(' / ')}</span></td>`;
+    });
+    row += `<td><b>${tMy}</b></td><td><b>${tOpp}</b></td><td class="${cls(tMy-tOpp)}"><b>${sgn(tMy-tOpp)}</b></td><td>${w}-${d}-${l}</td></tr>`;
+    h += row;
+  });
+  // Ligne total équipe
+  h += `<tr class="total"><td class="rowhead">TOTAL ÉQUIPE</td>`;
+  oppOrder.forEach(oi=>{ const c = colTot[oi];
+    h += c.n===0 ? '<td class="none">—</td>' : `<td><span class="sc">${c.my}–${c.opp}</span></td>`;
+  });
+  h += `<td>${gMy}</td><td>${gOpp}</td><td class="${cls(gMy-gOpp)}">${sgn(gMy-gOpp)}</td><td>${gTW}-${gTD}-${gTL}</td></tr>`;
+  h += '</tbody></table>';
+  elP.innerHTML = h;
+}
+
+
+// Même tri que oppIdxByRound(), mais sur une liste d'équipes adverses donnée.
+function oppIdxByRoundOf(oppTeams){
+  return oppTeams.map((ot,i)=>i).sort((a,b)=>{
+    const ra = oppRoundOf(oppTeams[a]), rb = oppRoundOf(oppTeams[b]);
+    if(ra===null && rb===null) return a-b;
+    if(ra===null) return 1;
+    if(rb===null) return -1;
+    return ra-rb || a-b;
+  });
+}
+
+/* ================================================================================
+   TOURNOIS TERMINÉS — copies figées stockées dans Firestore (collection « tournaments »)
+   • « Enregistrer ce tournoi » (onglet 5) : copie compacte du state (équipes, pairing, scores).
+   • Onglet « 8. Tournois terminés » : choix d'un tournoi + mêmes tableaux que « 7. Stats »
+     + pairing de chaque ronde. Lecture seule, indépendant de la synchro temps réel.
+   Règles Firestore requises : lecture/écriture pour les comptes connectés sur
+   /tournaments/{id} (voir la note fournie avec l'outil).
+================================================================================= */
+const TOURNAMENTS_COLLECTION = 'tournaments';
+
+function buildTournamentSnapshot(name){
+  const cut = v => String(v===null||v===undefined ? '' : v).slice(0,300);
+  const num = v => (v===null||v===undefined||v===''||isNaN(v)) ? null : Number(v);
+  const idx = v => (v===null||v===undefined) ? null : Number(v);
+  const lockedAny = ot => ot.pairing.some(p=>p.myList!==null && p.oppList!==null);
+  // Ronde = rang de l'équipe adverse (ordre de création), comme dans l'onglet « 7. Stats »
+  const oppTeams = state.oppTeams.map((ot,i)=>({ot,i})).filter(({ot})=>lockedAny(ot)).map(({ot,i})=>({
+    name: cut(ot.name),
+    round: i+1,
+    roster: ot.roster.map(r=>({name:cut(r.name), faction:cut(r.faction)})),
+    pairing: ot.pairing.map(p=>({myList:idx(p.myList), oppList:idx(p.oppList), myScore:num(p.myScore), oppScore:num(p.oppScore)}))
+  }));
+  return {
+    name: cut(name),
+    teamSize: TEAM_SIZE,
+    myTeam: state.myTeam.map(p=>({name:cut(p.name), faction:cut(p.faction)})),
+    tables: state.tables.map(t=>({mission:cut(t.mission), scenario:cut(tableScenarioLabel(t))})),
+    oppTeams,
+    savedAtMs: Date.now(),
+    savedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    savedBy: (currentUserDoc && currentUserDoc.username) || '',
+    savedByUid: (currentUserDoc && currentUserDoc.uid) || ''
+  };
+}
+
+function setSaveTournamentMsg(text, isError){
+  const el = document.getElementById('saveTournamentMsg');
+  if(!el) return;
+  el.style.display = text ? '' : 'none';
+  el.textContent = text || '';
+  el.style.color = isError ? 'var(--red-bright)' : 'var(--green-bright)';
+}
+function firestoreErrorText(err){
+  if(err && err.code==='permission-denied')
+    return 'Accès refusé par les règles Firestore : autorise les comptes connectés à lire et écrire la collection « '+TOURNAMENTS_COLLECTION+' ».';
+  return 'Erreur Firestore' + (err && err.code ? ' ('+err.code+')' : '') + '.';
+}
+
+async function saveCurrentTournament(){
+  const btn = document.getElementById('saveTournamentBtn');
+  const nameInput = document.getElementById('saveTournamentName');
+  if(!btn || !nameInput) return;
+  const hasLocked = state.oppTeams.some(ot=>ot.pairing.some(p=>p.myList!==null && p.oppList!==null));
+  if(!hasLocked){
+    setSaveTournamentMsg('Rien à enregistrer : aucune table verrouillée (joueur + adversaire) dans le pairing.', true);
+    return;
+  }
+  if(!db || LOCAL_MODE){
+    setSaveTournamentMsg('Enregistrement indisponible en mode local : il faut être connecté à Firebase.', true);
+    return;
+  }
+  const name = nameInput.value.trim() || ('Tournoi du ' + new Date().toLocaleDateString('fr-FR'));
+  btn.disabled = true;
+  setSaveTournamentMsg('Enregistrement…', false);
+  try{
+    const snap = buildTournamentSnapshot(name);
+    await db.collection(TOURNAMENTS_COLLECTION).add(snap);
+    setSaveTournamentMsg('✔ Tournoi « '+name+' » enregistré ('+snap.oppTeams.length+' ronde'+(snap.oppTeams.length>1?'s':'')+'). Il est visible dans l\'onglet « 8. Tournois terminés ».', false);
+    nameInput.value = '';
+    finishedLoaded = false; // forcer le rechargement de la liste à la prochaine ouverture
+  }catch(err){
+    console.error('Enregistrement du tournoi :', err);
+    setSaveTournamentMsg(firestoreErrorText(err), true);
+  }finally{
+    btn.disabled = false;
+  }
+}
+document.getElementById('saveTournamentBtn').addEventListener('click', saveCurrentTournament);
+
+let finishedList = [];
+let finishedLoaded = false;
+let finishedSelectedId = null;
+
+function finishedStatus(text, isError){
+  const el = document.getElementById('finishedStatus');
+  if(!el) return;
+  el.textContent = text || '';
+  el.classList.toggle('err', !!isError);
+  el.style.display = text ? '' : 'none';
+}
+function finishedDate(t){
+  const d = t && t.savedAtMs ? new Date(t.savedAtMs) : null;
+  return d && !isNaN(d) ? d : null;
+}
+
+async function loadFinishedTournaments(){
+  if(!db || LOCAL_MODE){
+    finishedList = [];
+    finishedStatus('Les tournois terminés sont stockés sur Firestore : indisponible en mode local.', true);
+    renderFinishedSelect();
+    document.getElementById('finishedContent').style.display = 'none';
+    return;
+  }
+  finishedStatus('Chargement des tournois…', false);
+  document.getElementById('finishedContent').style.display = 'none';
+  try{
+    const snap = await db.collection(TOURNAMENTS_COLLECTION).get();
+    finishedList = snap.docs.map(d=>Object.assign({id:d.id}, d.data()))
+      .sort((a,b)=>(b.savedAtMs||0)-(a.savedAtMs||0));
+    finishedLoaded = true;
+  }catch(err){
+    console.error('Chargement des tournois :', err);
+    finishedList = [];
+    finishedStatus(firestoreErrorText(err), true);
+    renderFinishedSelect();
+    return;
+  }
+  finishedStatus(finishedList.length ? '' : 'Aucun tournoi enregistré pour l\'instant. Utilise « Enregistrer ce tournoi » dans l\'onglet « 5. Résultats Réels Pairing ».', false);
+  if(!finishedList.some(t=>t.id===finishedSelectedId)) finishedSelectedId = finishedList.length ? finishedList[0].id : null;
+  renderFinishedSelect();
+  renderFinishedView();
+}
+
+function renderFinishedSelect(){
+  const sel = document.getElementById('finishedSelect');
+  if(!sel) return;
+  sel.innerHTML = finishedList.length
+    ? finishedList.map(t=>{
+        const d = finishedDate(t);
+        return `<option value="${escapeHtml(t.id)}" ${t.id===finishedSelectedId?'selected':''}>${escapeHtml(t.name||'Tournoi sans nom')}${d?' — '+d.toLocaleDateString('fr-FR'):''}</option>`;
+      }).join('')
+    : '<option value="">— aucun tournoi —</option>';
+  sel.disabled = finishedList.length===0;
+  const del = document.getElementById('finishedDeleteBtn');
+  const isAdmin = !!currentUserDoc && currentUserDoc.role==='admin';
+  if(del) del.style.display = (isAdmin && finishedList.length) ? '' : 'none';
+}
+
+// Tableau du pairing de chaque ronde : table, mission, joueur, adversaire, score, résultat.
+function renderFinishedPairing(src, el){
+  const isNum = v => v!==null && v!==undefined && v!=='' && !isNaN(v);
+  const resOf = (a,b) => a>b?'win':(a<b?'loss':'draw');
+  const resLabel = {win:'Victoire', loss:'Défaite', draw:'Égalité'};
+  const label = (e,fb)=> escapeHtml(displayName(e,fb)) + (e && e.faction ? `<small>${escapeHtml(e.faction)}</small>` : '');
+  let h = '';
+  oppIdxByRoundOf(src.oppTeams).forEach(oi=>{
+    const ot = src.oppTeams[oi];
+    const r = oppRoundOf(ot);
+    const oname = ot.name && ot.name.trim() ? ot.name : 'Équipe adverse '+(oi+1);
+    const rows = [];
+    ot.pairing.forEach((p,t)=>{
+      if(p.myList===null || p.oppList===null) return;
+      const me = src.myTeam[p.myList], op = ot.roster[p.oppList];
+      const tb = (src.tables && src.tables[t]) || {};
+      const mission = [tb.mission && tb.mission.trim() ? tb.mission : '', tb.scenario || ''].filter(Boolean).join(' · ') || '—';
+      let score = '<td class="none">—</td><td class="none">—</td>';
+      if(isNum(p.myScore) && isNum(p.oppScore)){
+        const res = resOf(p.myScore,p.oppScore);
+        score = `<td class="${res}"><span class="sc">${p.myScore}–${p.oppScore}</span></td><td><span class="res-badge ${res}">${resLabel[res]}</span></td>`;
+      }
+      rows.push(`<tr><td>${t+1}</td><td class="rowhead" style="font-weight:400">${escapeHtml(mission)}</td>
+        <td class="rowhead">${label(me,'Joueur '+(p.myList+1))}</td><td class="rowhead">${label(op,'Adv. '+(p.oppList+1))}</td>${score}</tr>`);
+    });
+    h += `<div class="fin-round-title">${r!==null?'Ronde '+r:'Ronde non définie'} — ${escapeHtml(oname)}</div>
+      <div class="stats-scroll"><table class="stats"><thead><tr><th>Table</th><th style="text-align:left">Mission / scénario</th><th style="text-align:left">Mon équipe</th><th style="text-align:left">Adversaire</th><th>Score</th><th>Résultat</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+  });
+  el.innerHTML = h || '<div class="hint">Aucun pairing enregistré.</div>';
+}
+
+function renderFinishedView(){
+  const box = document.getElementById('finishedContent');
+  const t = finishedList.find(x=>x.id===finishedSelectedId);
+  if(!t){ box.style.display = 'none'; return; }
+  box.style.display = '';
+  const src = {
+    myTeam: t.myTeam || [],
+    oppTeams: (t.oppTeams || []).map(ot=>Object.assign({}, ot, {roster: ot.roster||[], pairing: ot.pairing||[]})),
+    teamSize: t.teamSize || (t.myTeam ? t.myTeam.length : 8),
+    tables: t.tables || []
+  };
+  const d = finishedDate(t);
+  document.getElementById('finishedMeta').textContent =
+    'Enregistré' + (d ? ' le '+formatLastLogin(d) : '') + (t.savedBy ? ' par '+t.savedBy : '') +
+    ' — format ' + src.teamSize + ' joueurs, ' + src.oppTeams.length + ' ronde' + (src.oppTeams.length>1?'s':'') + '.';
+  renderStatsFor(src,
+    document.getElementById('finGlobal'), document.getElementById('finRounds'), document.getElementById('finPlayers'),
+    'Aucun score saisi dans ce tournoi.');
+  renderFinishedPairing(src, document.getElementById('finPairing'));
+}
+
+function renderTournamentsTab(){
+  renderFinishedSelect();
+  if(!finishedLoaded) loadFinishedTournaments(); else renderFinishedView();
+}
+document.getElementById('finishedSelect').addEventListener('change', e=>{
+  finishedSelectedId = e.target.value || null;
+  renderFinishedView();
+});
+document.getElementById('finishedRefreshBtn').addEventListener('click', loadFinishedTournaments);
+document.getElementById('finishedDeleteBtn').addEventListener('click', async ()=>{
+  const t = finishedList.find(x=>x.id===finishedSelectedId);
+  if(!t || !db || LOCAL_MODE || !currentUserDoc || currentUserDoc.role!=='admin') return;
+  if(!confirm('Supprimer définitivement le tournoi « '+(t.name||'sans nom')+' » ?')) return;
+  try{
+    await db.collection(TOURNAMENTS_COLLECTION).doc(t.id).delete();
+    finishedSelectedId = null;
+    await loadFinishedTournaments();
+  }catch(err){
+    console.error('Suppression du tournoi :', err);
+    finishedStatus(firestoreErrorText(err), true);
+  }
+});
+
 /* ---------- Tabs ---------- */
 document.querySelectorAll('.tab-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
@@ -3970,6 +4394,8 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     if(btn.dataset.tab==='live') renderLive();
     if(btn.dataset.tab==='results') renderResults();
     if(btn.dataset.tab==='layouts') renderScenarioTab();
+    if(btn.dataset.tab==='stats') renderStats();
+    if(btn.dataset.tab==='tournaments') renderTournamentsTab();
   });
 });
 
@@ -4048,10 +4474,12 @@ document.getElementById('liveOppSelect').addEventListener('change', e=>{
 // défenseur sur une table libre, propose 2 attaquants au défenseur adverse, et chaque
 // défenseur garde l'un des 2. Les attaquants refusés retournent dans la réserve. Quand il
 // ne reste que 4 joueurs par équipe, les 2 refusés s'affrontent et les 2 derniers aussi.
-// Pour chaque couple (défenseur tour 1, défenseur tour 2) de mon équipe, on simule un grand
-// nombre de scénarios où l'adversaire joue de façon plausible mais incertaine (choix tirés
+// Pour chaque suite ordonnée de défenseurs (Def 1, Def 2, et Def 3 en format 8 joueurs) de mon
+// équipe, on simule un grand nombre de scénarios où l'adversaire joue de façon plausible mais incertaine (choix tirés
 // au sort, pondérés par son intérêt), et où mes autres choix suivent la recommandation.
-const STRANGE_SIMS_PER_COMBO = 300;
+const STRANGE_SIMS_PER_COMBO = 300;       // 2 défenseurs (format 6 joueurs)
+const STRANGE_SIMS_PER_COMBO_3DEF = 100;  // 3 défenseurs (format 8 joueurs) : 336 combinaisons au lieu de 56
+let strangeRunId = 0;
 const STRANGE_TOP_SHARE = 0.10; // part des meilleurs scénarios analysés
 
 function strangeMean(arr, fn){ if(!arr.length) return 0; let s=0; arr.forEach(x=>s+=fn(x)); return s/arr.length; }
@@ -4082,7 +4510,7 @@ function strangeSimulate(M0, O0, T0, forcedDefenders){
   while(M.length>=4){
     // 1. Défenseurs
     let dM = forcedDefenders[round];
-    if(dM===undefined){
+    if(dM===undefined || !M.includes(dM)){
       dM = M.reduce((b,i)=>{ const v=Math.max(...T.map(t=>strangeMean(O,j=>calcScore(i,j,t)))); return v>b.v?{i,v}:b; },{i:M[0],v:-1e9}).i;
     }
     const dO = strangePickSoft(O, j=>Math.max(...T.map(t=>-strangeMean(M,i=>calcScore(i,j,t)))), T_SOFT);
@@ -4093,7 +4521,11 @@ function strangeSimulate(M0, O0, T0, forcedDefenders){
     if(Math.random()<0.5){ tM=myTable(T); tO=oppTable(T.filter(t=>t!==tM)); }
     else { tO=oppTable(T); tM=myTable(T.filter(t=>t!==tO)); }
     // 3. Attaquants proposés
-    const myAtk = M.filter(i=>i!==dM).map(i=>({i,v:calcScore(i,dO,tO)})).sort((a,b)=>b.v-a.v).slice(0,2).map(x=>x.i);
+    // Je ne propose pas en attaque les défenseurs que j'ai prévus pour les tours suivants
+    const reserved = forcedDefenders.slice(round+1);
+    let atkPool = M.filter(i=>i!==dM && !reserved.includes(i));
+    if(atkPool.length<2) atkPool = M.filter(i=>i!==dM);
+    const myAtk = atkPool.map(i=>({i,v:calcScore(i,dO,tO)})).sort((a,b)=>b.v-a.v).slice(0,2).map(x=>x.i);
     const oppPool = O.filter(j=>j!==dO);
     const oppPairs=[];
     for(let a=0;a<oppPool.length;a++) for(let b=a+1;b<oppPool.length;b++) oppPairs.push([oppPool[a],oppPool[b]]);
@@ -4137,29 +4569,56 @@ function runDocteurStrange(){
   const O = [...Array(TEAM_SIZE).keys()].filter(j=>!oppUsed.has(j));
   const T = pairing.map((p,t)=>p.myList===null?t:null).filter(t=>t!==null);
   if(M.length<6){
-    out.innerHTML = `<div class="strange-warn">Il faut au moins 6 joueurs encore libres par équipe pour analyser 2 tours de défense.</div>`;
+    out.innerHTML = `<div class="strange-warn">Il faut au moins 6 joueurs encore libres par équipe pour analyser les défenseurs.</div>`;
     return;
   }
-  out.innerHTML = `<div class="strange-wait">🔮 Docteur Strange explore les futurs possibles…</div>`;
-  setTimeout(()=>{
-    const combos=[];
-    const all=[];
-    M.forEach(d1=>M.forEach(d2=>{
-      if(d1===d2) return;
+  // Nombre de défenseurs analysés : 3 en format 8 joueurs, 2 en format 6 joueurs
+  // (limité par le nombre de tours de défense encore possibles si des tables sont déjà verrouillées).
+  const nDef = Math.min(3, Math.floor((M.length-2)/2));
+  const simsPerCombo = nDef>=3 ? STRANGE_SIMS_PER_COMBO_3DEF : STRANGE_SIMS_PER_COMBO;
+  // Toutes les suites ordonnées de nDef défenseurs distincts (Def 1, Def 2, Def 3)
+  const plans = [];
+  const build = cur=>{
+    if(cur.length===nDef){ plans.push(cur.slice()); return; }
+    M.forEach(i=>{ if(!cur.includes(i)){ cur.push(i); build(cur); cur.pop(); } });
+  };
+  build([]);
+
+  const runId = ++strangeRunId; // une nouvelle analyse annule celle en cours
+  const waitHtml = pct=>`<div class="strange-wait">🔮 Docteur Strange explore les futurs possibles… ${pct} %</div>`;
+  out.innerHTML = waitHtml(0);
+
+  const combos=[];
+  const all=[];
+  let k=0;
+  const step = ()=>{
+    if(runId!==strangeRunId) return;
+    const t0 = performance.now();
+    while(k<plans.length && performance.now()-t0<40){
+      const defs = plans[k];
       const scores=[];
-      for(let s=0;s<STRANGE_SIMS_PER_COMBO;s++){
-        const sc = lockedScore + strangeSimulate(M,O,T,[d1,d2]);
-        scores.push(sc); all.push({c:combos.length, sc});
+      for(let s=0;s<simsPerCombo;s++){
+        const sc = lockedScore + strangeSimulate(M,O,T,defs);
+        scores.push(sc); all.push({c:k, sc});
       }
       scores.sort((a,b)=>b-a);
       const topN = Math.max(1, Math.round(scores.length*STRANGE_TOP_SHARE));
-      combos.push({d1,d2,
+      combos.push({defs,
         mean: scores.reduce((a,b)=>a+b,0)/scores.length,
         win: scores.filter(x=>x>0).length/scores.length,
         best: scores[0], worst: scores[scores.length-1],
         topMean: scores.slice(0,topN).reduce((a,b)=>a+b,0)/topN,
         inTop: 0});
-    }));
+      k++;
+    }
+    if(k<plans.length){
+      out.innerHTML = waitHtml(Math.floor(100*k/plans.length));
+      setTimeout(step, 0);
+      return;
+    }
+    finish();
+  };
+  const finish = ()=>{
     // Meilleurs scénarios, toutes combinaisons confondues
     all.sort((a,b)=>b.sc-a.sc);
     const nTop = Math.max(1, Math.round(all.length*STRANGE_TOP_SHARE));
@@ -4171,8 +4630,7 @@ function runDocteurStrange(){
     const pct = x=>Math.round(x*100)+' %';
     const card = (c,rank)=>`<div class="strange-card">
       <div class="strange-rank">Placement n°${rank}</div>
-      <div class="strange-def"><span>Tour 1 en défense :</span> <b>${nm(c.d1)}</b></div>
-      <div class="strange-def"><span>Tour 2 en défense :</span> <b>${nm(c.d2)}</b></div>
+      ${c.defs.map((d,n)=>`<div class="strange-def"><span>Def ${n+1} :</span> <b>${nm(d)}</b></div>`).join('')}
       <div class="strange-stats">
         <div><b>${pct(c.topShare)}</b><small>des meilleurs scénarios</small></div>
         <div><b>${f(c.topMean)}</b><small>score moyen dans ses meilleurs scénarios</small></div>
@@ -4180,13 +4638,15 @@ function runDocteurStrange(){
         <div><b>${pct(c.win)}</b><small>probabilité de finir positif</small></div>
         <div><b>${f(c.worst)} / ${f(c.best)}</b><small>pire / meilleur cas</small></div>
       </div></div>`;
-    const others = combos.slice(2,8).map(c=>`<tr><td>${nm(c.d1)}</td><td>${nm(c.d2)}</td><td>${pct(c.topShare)}</td><td>${f(c.mean)}</td><td>${pct(c.win)}</td></tr>`).join('');
-    out.innerHTML = `<div class="strange-head">🔮 J'ai vu ${all.length.toLocaleString('fr-FR')} futurs. Voici les 2 placements défensifs présents dans le plus grand nombre des ${nTop.toLocaleString('fr-FR')} meilleurs (${Math.round(STRANGE_TOP_SHARE*100)} % des scores finaux les plus élevés).</div>
+    const heads = combos[0].defs.map((_,n)=>`<th>Def ${n+1}</th>`).join('');
+    const others = combos.slice(2,8).map(c=>`<tr>${c.defs.map(d=>`<td>${nm(d)}</td>`).join('')}<td>${pct(c.topShare)}</td><td>${f(c.mean)}</td><td>${pct(c.win)}</td></tr>`).join('');
+    out.innerHTML = `<div class="strange-head">🔮 J'ai vu ${all.length.toLocaleString('fr-FR')} futurs. Voici les 2 placements défensifs (${nDef} défenseurs chacun) présents dans le plus grand nombre des ${nTop.toLocaleString('fr-FR')} meilleurs (${Math.round(STRANGE_TOP_SHARE*100)} % des scores finaux les plus élevés).</div>
       <div class="strange-grid">${card(combos[0],1)}${combos[1]?card(combos[1],2):''}</div>
       <details class="rec-more"><summary>Placements suivants</summary>
-      <table class="strange-table"><tr><th>Défenseur T1</th><th>Défenseur T2</th><th>Meilleurs scénarios</th><th>Score moyen</th><th>Proba &gt; 0</th></tr>${others}</table></details>
+      <table class="strange-table"><tr>${heads}<th>Meilleurs scénarios</th><th>Score moyen</th><th>Proba &gt; 0</th></tr>${others}</table></details>
       <div class="hint" style="margin-top:8px;">Simulation : l'adversaire fait des choix incertains mais orientés vers son intérêt (défenseur, table, attaquants, choix de l'attaquant) ; tes autres choix suivent la recommandation de l'outil. Les scores incluent les tables déjà verrouillées.</div>`;
-  }, 30);
+  };
+  setTimeout(step, 30);
 }
 document.getElementById('strangeBtn').addEventListener('click', runDocteurStrange);
 
@@ -4394,6 +4854,7 @@ function renderAllInner(){
   document.getElementById('modeSelect').value = state.mode;
   renderLive();
   renderResults();
+  renderStats();
 }
 
 // renderAllInner recrée tout le DOM (innerHTML=''), ce qui fait perdre le focus/curseur
